@@ -48,7 +48,8 @@ English rules:
 `
 
         // Batch processing to handle long songs
-        const CHUNK_SIZE = 20
+        // Reduced chunk size to 10 to prevent JSON truncation issues
+        const CHUNK_SIZE = 10
         const chunks = []
         for (let i = 0; i < hanziLines.length; i += CHUNK_SIZE) {
             chunks.push(hanziLines.slice(i, i + CHUNK_SIZE))
