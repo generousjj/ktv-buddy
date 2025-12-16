@@ -37,7 +37,7 @@ export function UnifiedView({ hanzi, pinyin, english }: { hanzi: string[], pinyi
     }, [hanzi.length])
 
     return (
-        <div className="h-full overflow-y-auto bg-zinc-950 px-4 py-20 pb-[50vh] scroll-smooth">
+        <div className="h-full overflow-y-auto bg-zinc-950 px-4 py-20 pb-[50vh] scroll-smooth select-none">
             <div className="max-w-2xl mx-auto space-y-8">
                 {hanzi.map((line, i) => {
                     const isActive = i === activeIndex
