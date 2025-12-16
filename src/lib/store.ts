@@ -30,7 +30,17 @@ export const SongStore = {
         return songs.find(s => s.id === id)
     },
 
-    save: (song: Omit<Song, 'id' | 'createdAt' | 'versionId'> & { id?: string, createdAt?: string, versionId?: string }): Song => {
+    save: (song: {
+        id?: string
+        title?: string | null
+        artist?: string | null
+        createdAt?: string
+        versionId?: string
+        hanzi: string[]
+        pinyin: string[]
+        english: string[]
+        lrcJson?: string | null
+    }): Song => {
         const songs = SongStore.getAll()
         const now = new Date().toISOString()
 
@@ -41,6 +51,7 @@ export const SongStore = {
             artist: song.artist || 'Unknown Artist',
             createdAt: song.createdAt || now,
             versionId: song.versionId || crypto.randomUUID(), // Versioning simplified for local storage
+            lrcJson: song.lrcJson || null
         }
 
         const existingIndex = songs.findIndex(s => s.id === newSong.id)
