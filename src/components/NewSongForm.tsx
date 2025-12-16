@@ -2,14 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createSong } from '@/app/actions'
-import { normalizeChineseLyrics } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
+import { normalizeChineseLyrics } from '@/lib/utils'
 import { SongStore } from '@/lib/store'
 
 export function NewSongForm() {
     const router = useRouter()
-    const [activeTab, setActiveTab] = useState<'paste' | 'search'>('paste')
+    const [activeTab, setActiveTab] = useState<'paste' | 'search'>('search')
 
     // Paste State
     const [lyrics, setLyrics] = useState('')
@@ -82,10 +81,13 @@ export function NewSongForm() {
             const result = SongStore.save({
                 title: track.name,
                 artist: track.artistName,
+                hanziLines: hanziLines,
+                pinyinLines: pinyin,
+                englishLines: english,
+                lrcJson: track.syncedLyrics || null,
                 hanzi: hanziLines,
                 pinyin: pinyin,
-                english: english,
-                lrcJson: track.syncedLyrics || null
+                english: english
             })
 
             router.push(`/song/${result.id}`)
@@ -156,16 +158,16 @@ export function NewSongForm() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <div className="flex border-b border-zinc-800">
                 <button
-                    onClick={() => setActiveTab('paste')}
-                    className={`px-6 py-3 text-sm font-medium ${activeTab === 'paste' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
-                >
-                    Paste Lyrics
-                </button>
-                <button
                     onClick={() => setActiveTab('search')}
                     className={`px-6 py-3 text-sm font-medium ${activeTab === 'search' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
                 >
                     Search Song
+                </button>
+                <button
+                    onClick={() => setActiveTab('paste')}
+                    className={`px-6 py-3 text-sm font-medium ${activeTab === 'paste' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
+                >
+                    Paste Lyrics
                 </button>
             </div>
 

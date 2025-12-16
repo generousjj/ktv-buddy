@@ -40,12 +40,24 @@ export default function LibraryPage() {
       </div>
 
       {songs.length === 0 ? (
-        <div className="text-center py-20 border-2 border-dashed border-zinc-800 rounded-2xl bg-zinc-900/50">
-          <Music2 className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-          <h3 className="text-xl font-medium text-white mb-2">No songs yet</h3>
-          <p className="text-zinc-500 mb-6">Get started by adding your first song</p>
-          <Link href="/new" className="text-emerald-400 hover:text-emerald-300 font-medium hover:underline">
-            Create new song
+        <div className="w-full max-w-[720px] mx-auto my-8 p-12 flex flex-col items-center text-center gap-4 bg-white border border-zinc-200 rounded-2xl shadow-sm">
+          <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center mb-1">
+            <Music2 className="w-6 h-6 text-zinc-400" />
+          </div>
+
+          <div className="space-y-1">
+            <h3 className="text-xl font-semibold text-zinc-900">Your library is empty</h3>
+            <p className="text-zinc-600 text-base leading-relaxed max-w-md mx-auto">
+              Get started by adding your first song. You can paste lyrics or search for existing tracks.
+            </p>
+          </div>
+
+          <Link
+            href="/new"
+            className="mt-2 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+          >
+            <PlusCircle className="w-5 h-5" />
+            New Song
           </Link>
         </div>
       ) : (
