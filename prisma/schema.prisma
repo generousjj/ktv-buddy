@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Song {
+  id        String        @id @default(cuid())
+  title     String?
+  artist    String?
+  source    String        // PASTE, LRCLIB, KUGOU
+  rawInput  String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  versions  SongVersion[]
+}
+
+model SongVersion {
+  id               String   @id @default(cuid())
+  songId           String
+  song             Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  settingsJson     String
+  hanziLinesJson   String
+  pinyinLinesJson  String
+  englishLinesJson String
+  lrcJson          String? // detailed timing if available
+  dirtyFlagsJson   String // meta data about manual edits
+  createdAt        DateTime @default(now())
+}
+
+model AppSetting {
+  key   String @id
+  value String
+}
+
+model EventLog {
+  id           String   @id @default(cuid())
+  type         String
+  metadataJson String
+  createdAt    DateTime @default(now())
+}
