@@ -19,6 +19,7 @@ export async function POST(req: Request) {
         }
 
         const apiKey = process.env.OPENAI_API_KEY
+        // const model = 'gpt-4o-mini'
         const model = 'gpt-4o-mini'
 
         if (!apiKey) {
@@ -45,29 +46,56 @@ English rules:
 - Use empty string if input line is just punctuation or empty.
 `
 
-        const response = await openai.chat.completions.create({
-            model: model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: JSON.stringify(hanziLines) }
-            ],
-            response_format: { type: 'json_object' }
-        })
-
-        const content = response.choices[0].message.content
-        if (!content) throw new Error('No content from OpenAI')
-
-        // Parse
-        let result: { pinyin: string[], english: string[] }
-        try {
-            result = JSON.parse(content)
-        } catch (e) {
-            throw new Error('Failed to parse OpenAI JSON response')
+        // Batch processing to handle long songs
+        const CHUNK_SIZE = 20
+        const chunks = []
+        for (let i = 0; i < hanziLines.length; i += CHUNK_SIZE) {
+            chunks.push(hanziLines.slice(i, i + CHUNK_SIZE))
         }
 
+        console.log(`Processing ${hanziLines.length} lines in ${chunks.length} chunks...`)
+
+        const results = await Promise.all(chunks.map(async (chunk, index) => {
+            try {
+                const response = await openai.chat.completions.create({
+                    model: model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: JSON.stringify(chunk) }
+                    ],
+                    response_format: { type: 'json_object' }
+                })
+
+                const content = response.choices[0].message.content
+                if (!content) throw new Error('No content')
+                const parsed = JSON.parse(content)
+
+                // Validate output length matches input chunk length
+                if (parsed.pinyin?.length !== chunk.length || parsed.english?.length !== chunk.length) {
+                    console.warn(`Chunk ${index} length mismatch. Input: ${chunk.length}, Output Pinyin: ${parsed.pinyin?.length}, Output English: ${parsed.english?.length}`)
+                }
+
+                return {
+                    pinyin: parsed.pinyin || Array(chunk.length).fill(''),
+                    english: parsed.english || Array(chunk.length).fill('')
+                }
+            } catch (err) {
+                console.error(`Error processing chunk ${index}:`, err)
+                // Return empty arrays on failure to preserve structure
+                return {
+                    pinyin: Array(chunk.length).fill('Error generating'),
+                    english: Array(chunk.length).fill('Error generating')
+                }
+            }
+        }))
+
+        // Flatten results
+        const finalPinyin = results.flatMap(r => r.pinyin)
+        const finalEnglish = results.flatMap(r => r.english)
+
         return NextResponse.json({
-            pinyin: result.pinyin || [],
-            english: result.english || []
+            pinyin: finalPinyin,
+            english: finalEnglish
         })
 
     } catch (error: any) {
