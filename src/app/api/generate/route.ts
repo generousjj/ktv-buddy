@@ -23,6 +23,7 @@ export async function POST(req: Request) {
         const model = 'gpt-4o-mini'
 
         if (!apiKey) {
+            console.error('API Key missing in environment')
             return NextResponse.json({ error: 'OpenAI API Key not configured at source.' }, { status: 401 })
         }
 
@@ -53,11 +54,12 @@ English rules:
             chunks.push(hanziLines.slice(i, i + CHUNK_SIZE))
         }
 
-        console.log(`Processing ${hanziLines.length} lines in ${chunks.length} chunks...`)
+        console.log(`[Generate] Processing ${hanziLines.length} lines in ${chunks.length} chunks. Model: ${model}`)
 
         // Sequential processing to avoid Rate Limits (429)
         const results = []
         for (const [index, chunk] of chunks.entries()) {
+            console.log(`[Generate] Starting chunk ${index + 1}/${chunks.length} size=${chunk.length}`)
             try {
                 const response = await openai.chat.completions.create({
                     model: model,
@@ -69,11 +71,14 @@ English rules:
                 })
 
                 const content = response.choices[0].message.content
-                if (!content) throw new Error('No content')
+                if (!content) throw new Error('No content received from OpenAI')
+
+                // console.log(`[Generate] Chunk ${index} raw content:`, content.substring(0, 100) + '...')
+
                 const parsed = JSON.parse(content)
 
                 if (parsed.pinyin?.length !== chunk.length) {
-                    console.warn(`Chunk ${index} mismatch`)
+                    console.warn(`[Generate] Chunk ${index} mismatch: Input ${chunk.length} vs Output ${parsed.pinyin?.length}`)
                 }
 
                 results.push({
@@ -81,10 +86,15 @@ English rules:
                     english: parsed.english || Array(chunk.length).fill('')
                 })
 
+                console.log(`[Generate] Chunk ${index + 1} completed successfully`)
+
             } catch (err: any) {
-                console.error(`Error processing chunk ${index}:`, err)
-                // If it's a rate limit, maybe wait a bit? But to be safe, just return error text
-                const msg = err?.status === 429 ? 'Rate Limited' : 'Error'
+                console.error(`[Generate] Error processing chunk ${index}:`, err?.message || err)
+                if (err?.response) {
+                    console.error('[Generate] OpenAI Response Data:', err.response.data)
+                }
+
+                const msg = err?.status === 429 ? 'Rate Limit Exceeded' : `Error: ${err?.message || 'Unknown'}`
                 results.push({
                     pinyin: Array(chunk.length).fill(msg),
                     english: Array(chunk.length).fill(msg)
