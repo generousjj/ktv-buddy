@@ -81,13 +81,10 @@ export function NewSongForm() {
             const result = SongStore.save({
                 title: track.name,
                 artist: track.artistName,
-                hanziLines: hanziLines,
-                pinyinLines: pinyin,
-                englishLines: english,
-                lrcJson: track.syncedLyrics || null,
                 hanzi: hanziLines,
                 pinyin: pinyin,
-                english: english
+                english: english,
+                lrcJson: track.syncedLyrics || null
             })
 
             router.push(`/song/${result.id}`)
