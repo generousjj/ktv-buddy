@@ -1,5 +1,6 @@
-import { SongWorkspace } from '@/components/SongWorkspace/SongWorkspace'
 'use client'
+
+import { SongWorkspace } from '@/components/SongWorkspace/SongWorkspace'
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
