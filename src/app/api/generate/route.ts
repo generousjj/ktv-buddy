@@ -55,7 +55,9 @@ English rules:
 
         console.log(`Processing ${hanziLines.length} lines in ${chunks.length} chunks...`)
 
-        const results = await Promise.all(chunks.map(async (chunk, index) => {
+        // Sequential processing to avoid Rate Limits (429)
+        const results = []
+        for (const [index, chunk] of chunks.entries()) {
             try {
                 const response = await openai.chat.completions.create({
                     model: model,
@@ -63,31 +65,32 @@ English rules:
                         { role: 'system', content: systemPrompt },
                         { role: 'user', content: JSON.stringify(chunk) }
                     ],
-                    response_format: { type: 'json_object' }
+                    response_format: { type: 'json_object' },
                 })
 
                 const content = response.choices[0].message.content
                 if (!content) throw new Error('No content')
                 const parsed = JSON.parse(content)
 
-                // Validate output length matches input chunk length
-                if (parsed.pinyin?.length !== chunk.length || parsed.english?.length !== chunk.length) {
-                    console.warn(`Chunk ${index} length mismatch. Input: ${chunk.length}, Output Pinyin: ${parsed.pinyin?.length}, Output English: ${parsed.english?.length}`)
+                if (parsed.pinyin?.length !== chunk.length) {
+                    console.warn(`Chunk ${index} mismatch`)
                 }
 
-                return {
+                results.push({
                     pinyin: parsed.pinyin || Array(chunk.length).fill(''),
                     english: parsed.english || Array(chunk.length).fill('')
-                }
-            } catch (err) {
+                })
+
+            } catch (err: any) {
                 console.error(`Error processing chunk ${index}:`, err)
-                // Return empty arrays on failure to preserve structure
-                return {
-                    pinyin: Array(chunk.length).fill('Error generating'),
-                    english: Array(chunk.length).fill('Error generating')
-                }
+                // If it's a rate limit, maybe wait a bit? But to be safe, just return error text
+                const msg = err?.status === 429 ? 'Rate Limited' : 'Error'
+                results.push({
+                    pinyin: Array(chunk.length).fill(msg),
+                    english: Array(chunk.length).fill(msg)
+                })
             }
-        }))
+        }
 
         // Flatten results
         const finalPinyin = results.flatMap(r => r.pinyin)
