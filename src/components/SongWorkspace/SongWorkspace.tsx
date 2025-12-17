@@ -24,13 +24,27 @@ export type SongData = {
     audioUrl?: string | null
 }
 
+const cleanData = (h: string[], p: string[], e: string[]) => {
+    const validIndices = h.map((line, i) => line?.trim() ? i : -1).filter(i => i !== -1)
+    if (validIndices.length === h.length) return { hanzi: h, pinyin: p, english: e, cleaned: false }
+    return {
+        hanzi: validIndices.map(i => h[i]),
+        pinyin: validIndices.map(i => p[i] || ''),
+        english: validIndices.map(i => e[i] || ''),
+        cleaned: true
+    }
+}
+
 export function SongWorkspace({ initialData }: { initialData: SongData }) {
     const { t } = useLanguage()
     const [activeTab, setActiveTab] = useState<'editor' | 'karaoke' | 'unified' | 'export'>('unified')
 
-    const [hanzi, setHanzi] = useState(initialData.hanzi)
-    const [pinyin, setPinyin] = useState(initialData.pinyin)
-    const [english, setEnglish] = useState(initialData.english)
+    // Clean data on init to remove empty lines that break card view
+    const { hanzi: initHanzi, pinyin: initPinyin, english: initEnglish, cleaned: wasCleaned } = cleanData(initialData.hanzi, initialData.pinyin, initialData.english)
+
+    const [hanzi, setHanzi] = useState(initHanzi)
+    const [pinyin, setPinyin] = useState(initPinyin)
+    const [english, setEnglish] = useState(initEnglish)
     const [audioUrl, setAudioUrl] = useState(initialData.audioUrl || '')
     const [saving, setSaving] = useState(false)
     const [isGenerating, setIsGenerating] = useState(false)
@@ -41,9 +55,23 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
         english: true
     })
 
+    // Save cleaned data if needed
+    useEffect(() => {
+        if (wasCleaned) {
+            console.log('Saving auto-cleaned data...')
+            SongStore.save({
+                ...initialData,
+                hanzi: initHanzi,
+                pinyin: initPinyin,
+                english: initEnglish
+            })
+        }
+    }, [])
+
     // Auto-generate if only Hanzi exists (e.g. newly created)
     useEffect(() => {
-        if (initialData.hanzi.length > 0 && (initialData.pinyin.length === 0 || initialData.pinyin.length !== initialData.hanzi.length)) {
+        // Use current state lengths (which are cleaned)
+        if (hanzi.length > 0 && (pinyin.length === 0 || pinyin.length !== hanzi.length)) {
             handleGenerate()
         }
     }, [])
