@@ -56,7 +56,7 @@ export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave }: {
 
             <div className="flex-1 overflow-auto divide-y divide-zinc-900">
                 {hanzi.map((line, i) => (
-                    <div key={i} className={`flex flex-col md:grid md:grid-cols-3 hover:bg-zinc-900/30 group py-4 md:py-0 border-b border-zinc-900 md:border-b-0 relative transition-opacity duration-200 ${isRegenerating ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                    <div key={i} className={`flex flex-col md:grid md:grid-cols-3 hover:bg-zinc-900/30 group py-4 md:py-0 border-b border-zinc-900 md:border-b-0 relative transition-opacity duration-200 ${isRegenerating ? 'pointer-events-none' : ''}`}>
                         {/* Mobile Label */}
                         <div className="md:hidden absolute top-2 right-2 text-[10px] text-zinc-600 font-mono">#{i + 1}</div>
 
@@ -126,13 +126,55 @@ export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave }: {
                                 body: JSON.stringify({ hanziLines: hanzi, options: { toneNumbers: false } }),
                                 headers: { 'Content-Type': 'application/json' }
                             })
-                            if (res.ok) {
-                                const { pinyin: newPinyin, english: newEnglish } = await res.json()
-                                if (onAutoSave) {
-                                    onAutoSave(hanzi, newPinyin, newEnglish)
-                                } else {
-                                    onChange(hanzi, newPinyin, newEnglish)
+
+                            if (!res.body) throw new Error('No stream body')
+
+                            const reader = res.body.getReader()
+                            const decoder = new TextDecoder()
+
+                            let currentPinyin = [...pinyin]
+                            // Reset English to loading state or keep old?
+                            // Let's keep old but maybe show indicator? 
+                            // Actually, replace with placeholders to show progress is happening?
+                            // Or just overwrite. Overwriting is safest for "live edits".
+                            let currentEnglish = [...english]
+
+                            while (true) {
+                                const { done, value } = await reader.read()
+                                if (done) break
+
+                                const chunk = decoder.decode(value, { stream: true })
+                                const lines = chunk.split('\n').filter(l => l.trim())
+
+                                for (const line of lines) {
+                                    try {
+                                        const msg = JSON.parse(line)
+                                        if (msg.type === 'pinyin') {
+                                            currentPinyin = msg.data
+                                            // Update UI immediately (Pinyin is fast)
+                                            onChange(hanzi, currentPinyin, currentEnglish)
+                                        } else if (msg.type === 'english') {
+                                            const { chunkIndex, data } = msg
+                                            const start = chunkIndex * 10 // CHUNK_SIZE is 10
+
+                                            // Update slice
+                                            for (let i = 0; i < data.length; i++) {
+                                                if (start + i < currentEnglish.length) {
+                                                    currentEnglish[start + i] = data[i]
+                                                }
+                                            }
+                                            onChange(hanzi, currentPinyin, currentEnglish)
+                                        } else if (msg.type === 'error') {
+                                            console.error('Stream error:', msg.message)
+                                        }
+                                    } catch (e) {
+                                        console.warn('Stream parse error:', e)
+                                    }
                                 }
+                            }
+
+                            if (onAutoSave) {
+                                onAutoSave(hanzi, currentPinyin, currentEnglish)
                             }
                         } catch (e) {
                             console.error(e)
