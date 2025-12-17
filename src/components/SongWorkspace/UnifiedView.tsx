@@ -239,7 +239,10 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                         {audioUrl ? t('unified.linked') : t('unified.noAudio')}
                                     </button>
                                      */}
-                                    <span>{new Date((duration || currentTime) * 1000).toISOString().substr(14, 5)}</span>
+                                    {/* Display computed duration if available, otherwise 00:00 or current implies unknown */}
+                                    <span>
+                                        {new Date((duration || (hasSync && syncedLines.length > 0 ? syncedLines[syncedLines.length - 1].time + 10 : 0) || currentTime) * 1000).toISOString().substr(14, 5)}
+                                    </span>
                                 </div>
                             </div>
 
