@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { normalizeChineseLyrics } from '@/lib/utils'
+import { getPinyinSplits } from '@/lib/pinyin-splitter'
 import { SongStore } from '@/lib/store'
 import { useLanguage } from '@/lib/i18n'
 
@@ -30,6 +31,7 @@ export function NewSongForm() {
     // Search State
     const [searchQuery, setSearchQuery] = useState('')
     const [searching, setSearching] = useState(false)
+    const [hasSearched, setHasSearched] = useState(false)
     const [searchResults, setSearchResults] = useState<any[]>([])
     const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null)
 
@@ -37,6 +39,7 @@ export function NewSongForm() {
         e.preventDefault()
         if (!searchQuery) return
         setSearching(true)
+        setHasSearched(true)
         setSearchResults([])
         try {
             // Generate all variants to ensure we catch results in any script
@@ -44,8 +47,16 @@ export function NewSongForm() {
             const querySimp = converterToSimp(searchQuery)
             const queryTrad = converterToTrad(searchQuery)
 
+            // Generate pinyin splits (e.g. "henai" -> "hen ai", "he nai")
+            const pinyinSplits = getPinyinSplits(searchQuery)
+
             // Deduplicate queries (e.g. if input is already Simplified, Original == Simp)
-            const uniqueQueries = Array.from(new Set([queryOriginal, querySimp, queryTrad])).filter(q => q && q.trim())
+            const uniqueQueries = Array.from(new Set([
+                queryOriginal,
+                querySimp,
+                queryTrad,
+                ...pinyinSplits
+            ])).filter(q => q && q.trim())
 
             // Run requests in parallel
             const requests = uniqueQueries.map(q =>
@@ -296,7 +307,7 @@ export function NewSongForm() {
                                     </div>
                                 )
                             })}
-                            {searchResults.length === 0 && !searching && searchQuery && (
+                            {searchResults.length === 0 && !searching && hasSearched && (
                                 <div className="text-center text-zinc-500 text-sm">{t('newSong.noResults')}</div>
                             )}
                         </div>
