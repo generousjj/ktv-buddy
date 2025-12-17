@@ -211,7 +211,7 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
 
             {/* Floating Action / Player Bar */}
             {hasSync && (
-                <div className="fixed bottom-0 right-0 left-0 md:left-64 bg-zinc-950/90 backdrop-blur-xl border-t border-zinc-800 p-4 pb-safe z-[100] transition-all">
+                <div className="fixed bottom-16 md:bottom-0 right-0 left-0 md:left-64 bg-zinc-950/90 backdrop-blur-xl border-t border-zinc-800 p-4 md:pb-safe z-[100] transition-all">
                     <div className="max-w-2xl mx-auto flex items-center gap-4">
                         <button
                             onClick={() => setPlaying(!playing)}
