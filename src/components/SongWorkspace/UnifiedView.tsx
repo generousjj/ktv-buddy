@@ -57,6 +57,12 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
     }, [audioUrl])
 
     const itemRefs = useRef<(HTMLDivElement | null)[]>([])
+    const playerRef = useRef<any>(null)
+    const [currentTime, setCurrentTime] = useState(0)
+    const [duration, setDuration] = useState(0)
+    const [playing, setPlaying] = useState(false)
+    const [playerMounted, setPlayerMounted] = useState(false)
+    const startTimeRef = useRef<number>(0)
 
     // Player State
     const [playing, setPlaying] = useState(false)
@@ -133,6 +139,9 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
             const time = syncedLines[index].time
             setCurrentTime(time)
 
+            // Allow seek while playing without jitter
+            startTimeRef.current = Date.now() - time * 1000
+
             if (playerRef.current?.seekTo) {
                 playerRef.current.seekTo(time)
             }
@@ -142,18 +151,21 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
     }
 
     // Timer for manual playback (no audio source)
+    // Timer for manual playback (no audio source)
     useEffect(() => {
         let interval: NodeJS.Timeout
         if (playing /* && !audioUrl */) {
-            // Anchor the timer from the current moment relative to currentTime
-            const start = Date.now() - currentTime * 1000
+            // Anchor timer to start time to prevent drift
+            startTimeRef.current = Date.now() - currentTime * 1000
+
             interval = setInterval(() => {
                 const now = Date.now()
-                setCurrentTime((now - start) / 1000)
-            }, 30) // Faster polling (30ms) for smoother updates
+                const elapsed = (now - startTimeRef.current) / 1000
+                setCurrentTime(elapsed)
+            }, 30)
         }
         return () => clearInterval(interval)
-    }, [playing, audioUrl, currentTime])
+    }, [playing])
 
     // ...
 
@@ -253,7 +265,10 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                     const rect = e.currentTarget.getBoundingClientRect()
                                     const percent = (e.clientX - rect.left) / rect.width
                                     const newTime = percent * (duration || 240) // Default to 4m if no duration
+
                                     setCurrentTime(newTime)
+                                    startTimeRef.current = Date.now() - newTime * 1000
+
                                     if (playerRef.current?.seekTo) {
                                         playerRef.current.seekTo(newTime)
                                     }
