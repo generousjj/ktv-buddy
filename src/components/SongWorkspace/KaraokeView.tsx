@@ -70,7 +70,7 @@ export function KaraokeView({ hanzi, pinyin, english }: { hanzi: string[], pinyi
             <div ref={containerRef} className="flex-1 flex items-center justify-center w-full max-w-6xl mx-auto min-h-0 overflow-hidden relative">
                 <div
                     ref={contentRef}
-                    className="flex flex-col gap-6 md:gap-10 items-center justify-center text-center w-full transition-transform duration-300 ease-out origin-center will-change-transform"
+                    className="flex flex-col gap-6 md:gap-10 items-center justify-center text-center w-full origin-center"
                     style={{ transform: `scale(${scale})` }}
                 >
                     {/* Pinyin */}
