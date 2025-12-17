@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { z } from 'zod'
 import { pinyin } from 'pinyin-pro'
+import { translate } from 'google-translate-api-x'
 
 const generateSchema = z.object({
     hanziLines: z.array(z.string()),
@@ -121,9 +122,29 @@ English rules:
             }
 
             if (!success) {
-                console.error(`[Generate] Failed chunk ${index + 1} after 3 attempts.`)
-                const msg = `Error: ${lastError}`
-                englishResults.push(Array(chunk.length).fill(msg))
+                console.warn(`[Generate] OpenAI failed for chunk ${index + 1}. Attempting fallback (Google Translate)...`)
+                try {
+                    const textToTranslate = chunk.join('\n')
+                    const res = await translate(textToTranslate, { to: 'en', rejectOnPartialFail: false })
+
+                    // Ensure we match line count
+                    let fallbackLines = res.text.split('\n').map(l => l.trim())
+
+                    if (fallbackLines.length < chunk.length) {
+                        const diff = chunk.length - fallbackLines.length
+                        fallbackLines = [...fallbackLines, ...Array(diff).fill('')]
+                    } else if (fallbackLines.length > chunk.length) {
+                        fallbackLines = fallbackLines.slice(0, chunk.length)
+                    }
+
+                    englishResults.push(fallbackLines)
+                    console.log(`[Generate] Fallback successful for chunk ${index + 1}`)
+
+                } catch (fallbackErr: any) {
+                    console.error(`[Generate] Fallback failed for chunk ${index + 1}:`, fallbackErr)
+                    const msg = `Error: ${lastError}`
+                    englishResults.push(Array(chunk.length).fill(msg))
+                }
             }
         }
 
