@@ -12,8 +12,14 @@ const generateSchema = z.object({
 })
 
 export async function POST(req: Request) {
+    let body
     try {
-        const body = await req.json()
+        body = await req.json()
+    } catch (e) {
+        return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+
+    try {
         const { hanziLines, options } = generateSchema.parse(body)
 
         if (hanziLines.length === 0) {
@@ -22,29 +28,36 @@ export async function POST(req: Request) {
 
         // 1. Generate Pinyin Locally (Free & Fast)
         console.log(`[Generate] Generating Pinyin locally for ${hanziLines.length} lines`)
-        const localPinyin = hanziLines.map(line =>
-            pinyin(line, {
+        const localPinyin = hanziLines.map(line => {
+            let p = pinyin(line, {
                 toneType: options?.toneNumbers ? 'num' : 'symbol',
                 nonZh: 'consecutive',
                 v: true
             })
-        )
 
-        // 2. Generate English Translations via OpenAI
+            // Normalize punctuation
+            p = p.replace(/，/g, ',')
+                .replace(/。/g, '.')
+                .replace(/！/g, '!')
+                .replace(/？/g, '?')
+                .replace(/：/g, ':')
+                .replace(/；/g, ';')
+                .replace(/（/g, '(')
+                .replace(/）/g, ')')
+
+            // Remove spacing anomalies around punctuation
+            // Remove space BEFORE punctuation: "word ," -> "word,"
+            p = p.replace(/\s+([,.!?:;)])/g, '$1')
+
+            // Fix space AFTER opening paren if any: "( word" -> "(word"
+            p = p.replace(/(\()\s+/g, '$1')
+
+            return p
+        })
+
         const apiKey = process.env.OPENAI_API_KEY
-        // Use gpt-4o for better JSON reliability
         const model = 'gpt-4o'
-
-        if (!apiKey) {
-            console.error('API Key missing, returning empty English')
-            // If no API key, we can still return Pinyin!
-            return NextResponse.json({
-                pinyin: localPinyin,
-                english: Array(hanziLines.length).fill('')
-            })
-        }
-
-        const openai = new OpenAI({ apiKey: apiKey })
+        const openai = apiKey ? new OpenAI({ apiKey: apiKey }) : null
 
         const systemPrompt = `
 You are a Chinese song lyrics translator.
@@ -59,112 +72,125 @@ English rules:
 - Use empty string if input line is just punctuation or empty.
 `
 
-        // Batch processing to handle long songs
-        // Chunk size 10 
         const CHUNK_SIZE = 10
-        const chunks = []
+        const chunks: string[][] = []
         for (let i = 0; i < hanziLines.length; i += CHUNK_SIZE) {
             chunks.push(hanziLines.slice(i, i + CHUNK_SIZE))
         }
 
-        console.log(`[Generate] Processing translations for ${hanziLines.length} lines in ${chunks.length} chunks. Model: ${model}`)
+        // Create Stream
+        const stream = new ReadableStream({
+            async start(controller) {
+                const encoder = new TextEncoder()
+                const send = (data: any) => controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
 
-        // Helper to clean JSON string
-        const cleanJson = (text: string) => {
-            if (!text) return ''
-            // Remove markdown code blocks
-            text = text.replace(/```json\n?|\n?```/g, '')
-            return text.trim()
-        }
+                // A. Send Pinyin immediately
+                send({ type: 'pinyin', data: localPinyin })
 
-        // Sequential processing to avoid Rate Limits (429)
-        const englishResults = []
-        for (const [index, chunk] of chunks.entries()) {
-            console.log(`[Generate] Starting chunk ${index + 1}/${chunks.length} size=${chunk.length}`)
+                // If no API key, stop here (or send empty english)
+                if (!openai) {
+                    console.error('API Key missing, returning empty English')
+                    send({ type: 'error', message: 'No OpenAI API Key. Pinyin generated only.' })
+                    // Send empty English chunks for all lines to match expected structure
+                    for (let i = 0; i < chunks.length; i++) {
+                        send({ type: 'english', chunkIndex: i, totalChunks: chunks.length, data: Array(chunks[i].length).fill('') })
+                    }
+                    controller.close()
+                    return
+                }
 
-            let attempts = 0
-            let success = false
-            let lastError: any = null
+                // Helper to clean JSON string
+                const cleanJson = (text: string) => {
+                    if (!text) return ''
+                    text = text.replace(/```json\n?|\n?```/g, '')
+                    return text.trim()
+                }
 
-            while (attempts < 3 && !success) {
-                attempts++
-                try {
-                    const response = await openai.chat.completions.create({
-                        model: model,
-                        max_tokens: 4096, // Ensure enough tokens for complete JSON
-                        messages: [
-                            { role: 'system', content: systemPrompt },
-                            { role: 'user', content: JSON.stringify(chunk) }
-                        ],
-                        response_format: { type: 'json_object' },
-                    })
+                console.log(`[Generate] Processing translations for ${hanziLines.length} lines in ${chunks.length} chunks. Model: ${model}`)
 
-                    let content = response.choices[0].message.content
-                    if (!content) throw new Error('No content received from OpenAI')
+                // B. Process English Chunks
+                for (const [index, chunk] of chunks.entries()) {
+                    console.log(`[Generate] Starting chunk ${index + 1}/${chunks.length} size=${chunk.length}`)
+                    let englishChunk: string[] = []
+                    let attempts = 0
+                    let success = false
+                    let lastError: any = null
 
-                    content = cleanJson(content)
-                    const parsed = JSON.parse(content)
+                    while (attempts < 3 && !success) {
+                        attempts++
+                        try {
+                            const response = await openai.chat.completions.create({
+                                model: model,
+                                max_tokens: 4096,
+                                messages: [
+                                    { role: 'system', content: systemPrompt },
+                                    { role: 'user', content: JSON.stringify(chunk) }
+                                ],
+                                response_format: { type: 'json_object' },
+                            })
 
-                    if (parsed.english?.length !== chunk.length) {
-                        console.warn(`[Generate] Chunk ${index} mismatch: Input ${chunk.length} vs Output ${parsed.english?.length}`)
+                            let content = response.choices[0].message.content
+                            if (!content) throw new Error('No content received from OpenAI')
+
+                            content = cleanJson(content)
+                            const parsed = JSON.parse(content)
+
+                            if (parsed.english?.length !== chunk.length) {
+                                console.warn(`[Generate] Chunk ${index} mismatch: Input ${chunk.length} vs Output ${parsed.english?.length}`)
+                            }
+
+                            englishChunk = parsed.english || Array(chunk.length).fill('')
+                            console.log(`[Generate] Chunk ${index + 1} completed successfully on attempt ${attempts}`)
+                            success = true
+
+                        } catch (err: any) {
+                            console.error(`[Generate] Error processing chunk ${index + 1} (Attempt ${attempts}):`, err?.message || err)
+                            lastError = err?.message || 'Unknown error'
+                            await new Promise(r => setTimeout(r, 1000 * attempts))
+                        }
                     }
 
-                    englishResults.push(parsed.english || Array(chunk.length).fill(''))
-                    console.log(`[Generate] Chunk ${index + 1} completed successfully on attempt ${attempts}`)
-                    success = true
+                    // Fallback
+                    if (!success) {
+                        console.warn(`[Generate] OpenAI failed for chunk ${index + 1}. Attempting fallback (Google Translate)...`)
+                        try {
+                            const textToTranslate = chunk.join('\n')
+                            const res = await translate(textToTranslate, { to: 'en', rejectOnPartialFail: false }) as any
+                            let fallbackLines = res.text.split('\n').map((l: string) => l.trim())
 
-                } catch (err: any) {
-                    console.error(`[Generate] Error processing chunk ${index + 1} (Attempt ${attempts}):`, err?.message || err)
-                    lastError = err?.message || 'Unknown error'
-                    // Wait a bit before retry (exponential backoff very naively)
-                    await new Promise(r => setTimeout(r, 1000 * attempts))
-                }
-            }
-
-            if (!success) {
-                console.warn(`[Generate] OpenAI failed for chunk ${index + 1}. Attempting fallback (Google Translate)...`)
-                try {
-                    const textToTranslate = chunk.join('\n')
-                    const res = await translate(textToTranslate, { to: 'en', rejectOnPartialFail: false })
-
-                    // Ensure we match line count
-                    let fallbackLines = res.text.split('\n').map(l => l.trim())
-
-                    if (fallbackLines.length < chunk.length) {
-                        const diff = chunk.length - fallbackLines.length
-                        fallbackLines = [...fallbackLines, ...Array(diff).fill('')]
-                    } else if (fallbackLines.length > chunk.length) {
-                        fallbackLines = fallbackLines.slice(0, chunk.length)
+                            // Align length
+                            if (fallbackLines.length < chunk.length) {
+                                const diff = chunk.length - fallbackLines.length
+                                fallbackLines = [...fallbackLines, ...Array(diff).fill('')]
+                            } else if (fallbackLines.length > chunk.length) {
+                                fallbackLines = fallbackLines.slice(0, chunk.length)
+                            }
+                            englishChunk = fallbackLines
+                            console.log(`[Generate] Fallback successful for chunk ${index + 1}`)
+                        } catch (fbErr: any) {
+                            console.error(`[Generate] Fallback failed for chunk ${index + 1}:`, fbErr)
+                            englishChunk = Array(chunk.length).fill(`Error: ${lastError || 'Fallback failed'}`)
+                        }
                     }
 
-                    englishResults.push(fallbackLines)
-                    console.log(`[Generate] Fallback successful for chunk ${index + 1}`)
-
-                } catch (fallbackErr: any) {
-                    console.error(`[Generate] Fallback failed for chunk ${index + 1}:`, fallbackErr)
-                    const msg = `Error: ${lastError}`
-                    englishResults.push(Array(chunk.length).fill(msg))
+                    // Send Chunk
+                    send({ type: 'english', chunkIndex: index, totalChunks: chunks.length, data: englishChunk })
                 }
+
+                controller.close()
             }
-        }
+        })
 
-        // Flatten results
-        const finalEnglish = englishResults.flat()
-
-        // Double check length matches Pinyin (it should)
-        if (finalEnglish.length < localPinyin.length) {
-            // Pad if necessary (though flatMap/flat ensures it matches pushed logic)
-            // But if specific chunks failed partially?
-            // Not likely with retry logic handling failures by pushing error messages.
-        }
-
-        return NextResponse.json({
-            pinyin: localPinyin,
-            english: finalEnglish
+        return new Response(stream, {
+            headers: {
+                'Content-Type': 'application/x-ndjson',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive'
+            }
         })
 
     } catch (error: any) {
-        console.error('Generate error:', error)
+        console.error('Generate setup error:', error)
         return NextResponse.json({ error: error.message || 'Unknown error' }, { status: 500 })
     }
 }
