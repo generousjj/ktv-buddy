@@ -21,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full bg-zinc-950" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased h-full text-zinc-100`}>
+      <body className={`${inter.className} antialiased h-full text-zinc-100`} suppressHydrationWarning>
         <LanguageProvider>
           {children}
         </LanguageProvider>
