@@ -57,47 +57,69 @@ English rules:
 
         console.log(`[Generate] Processing ${hanziLines.length} lines in ${chunks.length} chunks. Model: ${model}`)
 
+        // Helper to clean JSON string
+        const cleanJson = (text: string) => {
+            if (!text) return ''
+            // Remove markdown code blocks
+            text = text.replace(/```json\n?|\n?```/g, '')
+            return text.trim()
+        }
+
         // Sequential processing to avoid Rate Limits (429)
         const results = []
         for (const [index, chunk] of chunks.entries()) {
             console.log(`[Generate] Starting chunk ${index + 1}/${chunks.length} size=${chunk.length}`)
-            try {
-                const response = await openai.chat.completions.create({
-                    model: model,
-                    max_tokens: 4096, // Ensure enough tokens for complete JSON
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: JSON.stringify(chunk) }
-                    ],
-                    response_format: { type: 'json_object' },
-                })
 
-                const content = response.choices[0].message.content
-                if (!content) throw new Error('No content received from OpenAI')
+            let attempts = 0
+            let success = false
+            let lastError: any = null
 
-                // Log raw content for debugging if it fails parsing
-                console.log(`[Generate] Chunk ${index} raw content:`, content)
+            while (attempts < 3 && !success) {
+                attempts++
+                try {
+                    const response = await openai.chat.completions.create({
+                        model: model,
+                        max_tokens: 4096, // Ensure enough tokens for complete JSON
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: JSON.stringify(chunk) }
+                        ],
+                        response_format: { type: 'json_object' },
+                    })
 
-                const parsed = JSON.parse(content)
+                    let content = response.choices[0].message.content
+                    if (!content) throw new Error('No content received from OpenAI')
 
-                if (parsed.pinyin?.length !== chunk.length) {
-                    console.warn(`[Generate] Chunk ${index} mismatch: Input ${chunk.length} vs Output ${parsed.pinyin?.length}`)
+                    content = cleanJson(content)
+
+                    // Log raw content for debugging if it parses successfully (optional, maybe verbose)
+                    // console.log(`[Generate] Chunk ${index} content cleaned:`, content.substring(0, 50) + '...')
+
+                    const parsed = JSON.parse(content)
+
+                    if (parsed.pinyin?.length !== chunk.length) {
+                        console.warn(`[Generate] Chunk ${index} mismatch: Input ${chunk.length} vs Output ${parsed.pinyin?.length}`)
+                    }
+
+                    results.push({
+                        pinyin: parsed.pinyin || Array(chunk.length).fill(''),
+                        english: parsed.english || Array(chunk.length).fill('')
+                    })
+
+                    console.log(`[Generate] Chunk ${index + 1} completed successfully on attempt ${attempts}`)
+                    success = true
+
+                } catch (err: any) {
+                    console.error(`[Generate] Error processing chunk ${index + 1} (Attempt ${attempts}):`, err?.message || err)
+                    lastError = err?.message || 'Unknown error'
+                    // Wait a bit before retry (exponential backoff very naively)
+                    await new Promise(r => setTimeout(r, 1000 * attempts))
                 }
+            }
 
-                results.push({
-                    pinyin: parsed.pinyin || Array(chunk.length).fill(''),
-                    english: parsed.english || Array(chunk.length).fill('')
-                })
-
-                console.log(`[Generate] Chunk ${index + 1} completed successfully`)
-
-            } catch (err: any) {
-                console.error(`[Generate] Error processing chunk ${index}:`, err?.message || err)
-                if (err?.response) {
-                    console.error('[Generate] OpenAI Response Data:', err.response.data)
-                }
-
-                const msg = err?.status === 429 ? 'Rate Limit Exceeded' : `Error: ${err?.message || 'Unknown'}`
+            if (!success) {
+                console.error(`[Generate] Failed chunk ${index + 1} after 3 attempts.`)
+                const msg = `Error: ${lastError}`
                 results.push({
                     pinyin: Array(chunk.length).fill(msg),
                     english: Array(chunk.length).fill(msg)
