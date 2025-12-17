@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, Copy, Check } from 'lucide-react'
 import Link from 'next/link'
 import { pinyin as pinyinPro } from 'pinyin-pro'
 import { KaraokeView } from './KaraokeView'
@@ -34,6 +34,12 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
     const [audioUrl, setAudioUrl] = useState(initialData.audioUrl || '')
     const [saving, setSaving] = useState(false)
     const [isGenerating, setIsGenerating] = useState(false)
+    const [copied, setCopied] = useState(false)
+    const [exportOptions, setExportOptions] = useState({
+        hanzi: true,
+        pinyin: true,
+        english: true
+    })
 
     // Auto-generate if only Hanzi exists (e.g. newly created)
     useEffect(() => {
@@ -203,6 +209,26 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
         }
     }
 
+    const plainText = [
+        `Title: ${initialData.title || t('newSong.placeholder.title')}`,
+        `Artist: ${initialData.artist || t('newSong.placeholder.artist')}`,
+        '',
+        ...hanzi.flatMap((h, i) => {
+            const lines = []
+            if (exportOptions.hanzi) lines.push(h)
+            if (exportOptions.pinyin) lines.push(pinyin[i] || '')
+            if (exportOptions.english) lines.push(english[i] || '')
+            if (lines.length > 0) lines.push('') // spacing
+            return lines
+        })
+    ].join('\n')
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(plainText)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+    }
+
     const handleExport = () => {
         const data = {
             title: initialData.title,
@@ -272,19 +298,58 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 {activeTab === 'unified' && <UnifiedView hanzi={hanzi} pinyin={pinyin} english={english} lrcJson={initialData.lrcJson} audioUrl={audioUrl} onAudioUrlSave={(url) => { setAudioUrl(url); handleSave(); }} isGenerating={isGenerating} />}
                 {activeTab === 'karaoke' && <KaraokeView hanzi={hanzi} pinyin={pinyin} english={english} />}
                 {activeTab === 'export' && (
-                    <div className="p-8 h-full flex items-center justify-center">
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 max-w-md w-full text-center space-y-6">
-                            <div>
-                                <h3 className="text-xl font-bold text-white mb-2">{t('song.export')}</h3>
-                                <p className="text-zinc-400 text-sm">Download the song data as a JSON file including Lyrics, Pinyin, and translations.</p>
+                    <div className="p-8 h-full flex flex-col items-center justify-center overflow-hidden">
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 md:p-8 max-w-2xl w-full flex flex-col h-full max-h-[85vh]">
+                            <div className="flex items-center justify-between mb-6 shrink-0">
+                                <div>
+                                    <h3 className="text-xl font-bold text-white mb-1">{t('song.export')}</h3>
+                                    <p className="text-zinc-400 text-sm">Copy lyrics to clipboard.</p>
+                                </div>
+                                <button
+                                    onClick={handleExport}
+                                    className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 transition-colors"
+                                >
+                                    <Save className="w-3 h-3" />
+                                    JSON
+                                </button>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 mb-4 shrink-0">
+                                {(['hanzi', 'pinyin', 'english'] as const).map(key => (
+                                    <button
+                                        key={key}
+                                        onClick={() => setExportOptions(prev => ({ ...prev, [key]: !prev[key] }))}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${exportOptions[key]
+                                            ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/20'
+                                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                                            }`}
+                                    >
+                                        {key.charAt(0).toUpperCase() + key.slice(1)}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="flex-1 overflow-hidden relative group rounded-lg border border-zinc-800 bg-zinc-950 mb-6">
+                                <textarea
+                                    readOnly
+                                    value={plainText}
+                                    className="w-full h-full bg-transparent p-4 font-mono text-sm text-zinc-300 resize-none focus:outline-none"
+                                />
+                                <button
+                                    onClick={handleCopy}
+                                    className="absolute top-2 right-2 p-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-md shadow-lg border border-zinc-700 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                    title="Copy to clipboard"
+                                >
+                                    {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                                </button>
                             </div>
 
                             <button
-                                onClick={handleExport}
-                                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer"
+                                onClick={handleCopy}
+                                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer shrink-0"
                             >
-                                <Save className="w-5 h-5" />
-                                Download JSON
+                                {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                                {copied ? 'Copied!' : 'Copy Text'}
                             </button>
                         </div>
                     </div>
