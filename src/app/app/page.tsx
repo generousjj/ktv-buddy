@@ -38,28 +38,34 @@ export default function LibraryPage() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">{t('library.mySongs')}</h1>
-          {/* <p className="text-zinc-400">Manage your song collection</p> */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 md:gap-8">
+        <div className="flex items-center justify-between w-full md:w-auto">
+          <h1 className="text-3xl font-bold text-white mb-2 md:mb-0">{t('library.mySongs')}</h1>
+          {/* Mobile Language Switcher */}
+          <div className="md:hidden">
+            <LanguageSwitcher />
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <LanguageSwitcher />
+        <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-4">
+          {/* Desktop Language Switcher */}
+          <div className="hidden md:block">
+            <LanguageSwitcher />
+          </div>
 
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('newSong.placeholder.search')}
-              className="pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 w-64 transition-all"
+              className="pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-64 transition-all"
             />
           </div>
           <Link
             href="/app/new"
-            className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors font-medium shadow-lg shadow-emerald-500/20"
+            className="flex items-center justify-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors font-medium shadow-lg shadow-emerald-500/20 whitespace-nowrap"
           >
             <PlusCircle className="w-5 h-5" />
             {t('nav.newSong')}
