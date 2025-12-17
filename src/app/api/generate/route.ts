@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { z } from 'zod'
-import { pinyin } from 'pinyin-pro'
-import { translate } from 'google-translate-api-x'
 
 const generateSchema = z.object({
     hanziLines: z.array(z.string()),
@@ -26,57 +24,23 @@ export async function POST(req: Request) {
             return NextResponse.json({ pinyin: [], english: [] })
         }
 
-        // 1. Generate Pinyin Locally (Free & Fast)
-        console.log(`[Generate] Generating Pinyin locally for ${hanziLines.length} lines`)
-        const localPinyin = hanziLines.map(line => {
-            let p = pinyin(line, {
-                toneType: options?.toneNumbers ? 'num' : 'symbol',
-                nonZh: 'consecutive',
-                v: true
-            })
-
-            // Normalize punctuation
-            p = p.replace(/，/g, ',')
-                .replace(/。/g, '.')
-                .replace(/！/g, '!')
-                .replace(/？/g, '?')
-                .replace(/：/g, ':')
-                .replace(/；/g, ';')
-                .replace(/（/g, '(')
-                .replace(/）/g, ')')
-
-            // Remove spacing anomalies around punctuation
-            // Remove space BEFORE punctuation: "word ," -> "word,"
-            p = p.replace(/\s+([,.!?:;)])/g, '$1')
-
-            // Fix space AFTER opening paren if any: "( word" -> "(word"
-            p = p.replace(/(\()\s+/g, '$1')
-
-            return p
-        })
-
         const apiKey = process.env.OPENAI_API_KEY
-        const model = 'gpt-5-mini'
+        // Use gpt-4o as per commit c5499c1
+        const model = 'gpt-4o'
         const openai = apiKey ? new OpenAI({ apiKey: apiKey }) : null
 
+        // System prompt from commit c5499c1
         const systemPrompt = `
-You are a Chinese song lyrics translator and Pinyin expert.
-Input: JSON object { "hanzi": [lines] }.
-Task:
-1. Generate an English translation for each line.
-2. Generate ACCURATE Pinyin for each line.
-   - Handle polyphonic characters (多音字) based on context.
-   - TRITICAL RULES (You MUST follow these):
-     * "还是" / "還是" -> ALWAYS "hái shì" (never huán shì).
-     * "还" meaning "still/yet" -> "hái". "还" meaning "return/give back" -> "huán".
-     * "了" as particle -> "le". "了" meaning "finish/understand" -> "liǎo".
-     * "都" meaning "all/both" -> "dōu". "都" meaning "capital/city" -> "dū".
-     * "只" meaning "only" -> "zhǐ". "只" as measure word -> "zhī".
-     * "得" meaning "must" -> "děi". "得" as particle -> "de". "得" meaning "get" -> "dé".
-3. Output the FINAL corrected Pinyin for every line.
-
-Output JSON format: You MUST output a valid JSON object: { "english": [string, ...], "pinyin": [string, ...] }
+You are a Chinese song lyrics assistant.
+Input: An array of Chinese lyrics lines.
+Task: Generate Pinyin (Mandarin) and English translation for each line.
+Output JSON format: { "pinyin": [string, ...], "english": [string, ...] }
 Arrays must have exactly the same length as input.
+
+Pinyin rules:
+- Use standard pinyin with ${options?.toneNumbers ? 'tone numbers (e.g. ni3 hao3)' : 'tone marks (e.g. nǐ hǎo)'}.
+- Preserve punctuation from the input line.
+- Keep the structure aligned.
 
 English rules:
 - Learner-friendly, literal but natural.
@@ -96,17 +60,10 @@ English rules:
                 const encoder = new TextEncoder()
                 const send = (data: any) => controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
 
-                // A. Send Pinyin immediately
-                send({ type: 'pinyin', data: localPinyin })
-
-                // If no API key, stop here (or send empty english)
+                // If no API key, stop here
                 if (!openai) {
-                    console.error('API Key missing, returning empty English')
-                    send({ type: 'error', message: 'No OpenAI API Key. Pinyin generated only.' })
-                    // Send empty English chunks for all lines to match expected structure
-                    for (let i = 0; i < chunks.length; i++) {
-                        send({ type: 'english', chunkIndex: i, totalChunks: chunks.length, data: Array(chunks[i].length).fill('') })
-                    }
+                    console.error('API Key missing, returning empty')
+                    send({ type: 'error', message: 'No OpenAI API Key.' })
                     controller.close()
                     return
                 }
@@ -118,19 +75,14 @@ English rules:
                     return text.trim()
                 }
 
-                console.log(`[Generate] Processing translations for ${hanziLines.length} lines in ${chunks.length} chunks. Model: ${model}`)
+                console.log(`[Generate] Processing ${hanziLines.length} lines in ${chunks.length} chunks. Model: ${model}. Streaming enabled.`)
 
-                // B. Process English Chunks
+                // Process Chunks
                 for (const [index, chunk] of chunks.entries()) {
                     console.log(`[Generate] Starting chunk ${index + 1}/${chunks.length} size=${chunk.length}`)
-                    let englishChunk: string[] = []
-                    let pinyinChunk: string[] | null = null
+
                     let attempts = 0
                     let success = false
-                    let lastError: any = null
-
-                    const startIdx = index * CHUNK_SIZE
-                    const sourcePinyinChunk = localPinyin.slice(startIdx, startIdx + chunk.length)
 
                     while (attempts < 3 && !success) {
                         attempts++
@@ -140,7 +92,7 @@ English rules:
                                 max_tokens: 4096,
                                 messages: [
                                     { role: 'system', content: systemPrompt },
-                                    { role: 'user', content: `Transliterate and translate these lines. You MUST return JSON with "english" and "pinyin" arrays.\nInput: ${JSON.stringify({ hanzi: chunk })}` }
+                                    { role: 'user', content: JSON.stringify(chunk) }
                                 ],
                                 response_format: { type: 'json_object' },
                             })
@@ -149,82 +101,50 @@ English rules:
                             if (!content) throw new Error('No content received from OpenAI')
 
                             content = cleanJson(content)
-                            console.log(`[Generate] Chunk ${index + 1} Raw Response:`, content)
                             const parsed = JSON.parse(content)
 
-                            if (parsed.english?.length !== chunk.length) {
-                                console.warn(`[Generate] Chunk ${index} mismatch: Input ${chunk.length} vs Output ${parsed.english?.length}`)
-                            }
+                            const pinyinChunk = parsed.pinyin || Array(chunk.length).fill('')
+                            const englishChunk = parsed.english || Array(chunk.length).fill('')
 
-                            englishChunk = parsed.english || Array(chunk.length).fill('')
-                            // If OpenAI returns pinyin, use it
-                            if (parsed.pinyin && Array.isArray(parsed.pinyin)) {
-                                if (parsed.pinyin.length !== chunk.length) {
-                                    console.warn(`[Generate] Pinyin length mismatch: Expected ${chunk.length}, got ${parsed.pinyin.length}`)
-                                }
-                                pinyinChunk = parsed.pinyin
-                            } else {
-                                console.warn(`[Generate] Chunk ${index + 1} Missing pinyin. Keys found:`, Object.keys(parsed))
-                            }
+                            // Send chunks
+                            send({
+                                type: 'pinyin_chunk',
+                                chunkIndex: index,
+                                totalChunks: chunks.length,
+                                data: pinyinChunk
+                            })
 
+                            send({
+                                type: 'english',
+                                chunkIndex: index,
+                                totalChunks: chunks.length,
+                                data: englishChunk
+                            })
 
-                            console.log(`[Generate] Chunk ${index + 1} completed successfully on attempt ${attempts}`)
+                            console.log(`[Generate] Chunk ${index + 1} completed successfully`)
                             success = true
 
                         } catch (err: any) {
                             console.error(`[Generate] Error processing chunk ${index + 1} (Attempt ${attempts}):`, err?.message || err)
-                            lastError = err?.message || 'Unknown error'
                             await new Promise(r => setTimeout(r, 1000 * attempts))
                         }
                     }
 
-                    // Fallback
                     if (!success) {
-                        console.warn(`[Generate] OpenAI failed for chunk ${index + 1}. Attempting fallback (Google Translate)...`)
-                        try {
-                            const textToTranslate = chunk.join('\n')
-                            const res = await translate(textToTranslate, { to: 'en', rejectOnPartialFail: false }) as any
-                            let fallbackLines = res.text.split('\n').map((l: string) => l.trim())
-
-                            // Align length
-                            if (fallbackLines.length < chunk.length) {
-                                const diff = chunk.length - fallbackLines.length
-                                fallbackLines = [...fallbackLines, ...Array(diff).fill('')]
-                            } else if (fallbackLines.length > chunk.length) {
-                                fallbackLines = fallbackLines.slice(0, chunk.length)
-                            }
-                            englishChunk = fallbackLines
-                            console.log(`[Generate] Fallback successful for chunk ${index + 1}`)
-                        } catch (fbErr: any) {
-                            console.error(`[Generate] Fallback failed for chunk ${index + 1}:`, fbErr)
-                            englishChunk = Array(chunk.length).fill(`Error: ${lastError || 'Fallback failed'}`)
-                        }
+                        const errorData = Array(chunk.length).fill('Error generating')
+                        send({
+                            type: 'pinyin_chunk',
+                            chunkIndex: index,
+                            totalChunks: chunks.length,
+                            data: errorData
+                        })
+                        send({
+                            type: 'english',
+                            chunkIndex: index,
+                            totalChunks: chunks.length,
+                            data: errorData
+                        })
                     }
-
-                    // Send Chunk
-                    send({ type: 'english', chunkIndex: index, totalChunks: chunks.length, data: englishChunk })
-                    // Ensure we ALWAYS send a pinyin_chunk, either from AI or fallback to local, with fixes applied.
-                    const finalPinyinChunk = pinyinChunk || sourcePinyinChunk
-
-                    const correctedPinyinChunk = finalPinyinChunk.map((line, i) => {
-                        let fixed = line
-                        const hanziLine = chunk[i] || ''
-
-                        // 1. Context-aware "huán" -> "hái"
-                        if (hanziLine.includes('还') || hanziLine.includes('還')) {
-                            fixed = fixed.replace(/\bhuán\b/gi, 'hái')
-                        }
-
-                        // 2. Force "zhī shèng" -> "zhǐ shèng"
-                        fixed = fixed.replace(/\bzhī\s+shèng\b/gi, 'zhǐ shèng')
-
-                        // 3. Force "zhī yǒu" -> "zhǐ yǒu"
-                        fixed = fixed.replace(/\bzhī\s+yǒu\b/gi, 'zhǐ yǒu')
-
-                        return fixed
-                    })
-
-                    send({ type: 'pinyin_chunk', chunkIndex: index, totalChunks: chunks.length, data: correctedPinyinChunk })
                 }
 
                 controller.close()
