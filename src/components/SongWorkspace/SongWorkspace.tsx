@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
+import { pinyin as pinyinPro } from 'pinyin-pro'
 import { KaraokeView } from './KaraokeView'
 import { EditorView } from './EditorView'
 import { UnifiedView } from './UnifiedView'
@@ -46,6 +47,24 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
         setIsGenerating(true)
 
         try {
+            // fast-lib generation for immediate feedback
+            let currentPinyin = [...pinyin]
+            // If empty pinyin, generate client-side immediately
+            if (currentPinyin.length === 0 || currentPinyin.length !== hanzi.length) {
+                const fastPinyin = hanzi.map(line => pinyinPro(line, {
+                    toneType: 'symbol',
+                    nonZh: 'consecutive',
+                    v: true
+                }))
+                currentPinyin = fastPinyin
+                setPinyin([...currentPinyin])
+
+                // Initialize English with placeholders if empty to align arrays
+                if (english.length !== hanzi.length) {
+                    setEnglish(hanzi.map(() => ''))
+                }
+            }
+
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 body: JSON.stringify({ hanziLines: hanzi, options: { toneNumbers: false } }),
@@ -58,24 +77,13 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
             const decoder = new TextDecoder()
             let buffer = '' // Handle partial chunks
 
-            let currentPinyin = [...pinyin]
-            // If starting fresh, ensure pinyin/english arrays match hanzi length (filled with empty strings initially)
-            if (currentPinyin.length !== hanzi.length) {
-                currentPinyin = Array(hanzi.length).fill('')
-            }
+            // Sync local reference again in case state update hasn't propagated to this closure's pinyin
+            // (Actually currentPinyin is local variable so it's fine, but just to be safe)
 
             let currentEnglish = [...english]
             if (currentEnglish.length !== hanzi.length) {
                 currentEnglish = Array(hanzi.length).fill('')
             }
-            // Reset UI immediately to show generation state
-            setPinyin([...currentPinyin])
-            setEnglish([...currentEnglish])
-
-            // Initial clear for clean generation if we are starting fresh or regenerating
-            // But if we want "instant", keeping old data while new overwrites is better?
-            // User request implies "populat[ing]... as it processes".
-            // If this is a new song, they are empty anyway.
 
             while (true) {
                 const { done, value } = await reader.read()
@@ -93,6 +101,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                     try {
                         const msg = JSON.parse(line)
                         if (msg.type === 'pinyin') {
+                            // Legacy whole-array update (should trigger rarely now with chunks)
                             currentPinyin = msg.data
                             pinyinUpdated = true
                         } else if (msg.type === 'english') {
@@ -107,14 +116,12 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
                         } else if (msg.type === 'pinyin_chunk') {
                             const { chunkIndex, data } = msg
-                            console.log('Received pinyin_chunk', chunkIndex, data)
                             const start = chunkIndex * 10
                             for (let i = 0; i < data.length; i++) {
                                 if (start + i < currentPinyin.length) {
                                     currentPinyin[start + i] = data[i]
                                 }
                             }
-                            pinyinUpdated = true
                             pinyinUpdated = true
                         } else if (msg.type === 'error') {
                             console.error('Stream error:', msg.message)
@@ -126,7 +133,6 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
                 // Update state and save if changed
                 if (pinyinUpdated || englishUpdated) {
-                    console.log('Stream update:', { pinyinUpdated, englishUpdated })
                     setHanzi(hanzi) // Trigger re-render
                     setPinyin([...currentPinyin])
                     setEnglish([...currentEnglish])
