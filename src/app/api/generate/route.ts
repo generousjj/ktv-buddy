@@ -19,8 +19,8 @@ export async function POST(req: Request) {
         }
 
         const apiKey = process.env.OPENAI_API_KEY
-        // const model = 'gpt-4o-mini'
-        const model = 'gpt-4o-mini'
+        // Use gpt-4o for better JSON reliability
+        const model = 'gpt-4o'
 
         if (!apiKey) {
             console.error('API Key missing in environment')
@@ -64,6 +64,7 @@ English rules:
             try {
                 const response = await openai.chat.completions.create({
                     model: model,
+                    max_tokens: 4096, // Ensure enough tokens for complete JSON
                     messages: [
                         { role: 'system', content: systemPrompt },
                         { role: 'user', content: JSON.stringify(chunk) }
@@ -74,7 +75,8 @@ English rules:
                 const content = response.choices[0].message.content
                 if (!content) throw new Error('No content received from OpenAI')
 
-                // console.log(`[Generate] Chunk ${index} raw content:`, content.substring(0, 100) + '...')
+                // Log raw content for debugging if it fails parsing
+                console.log(`[Generate] Chunk ${index} raw content:`, content)
 
                 const parsed = JSON.parse(content)
 
