@@ -35,7 +35,7 @@ export default function LandingPage() {
             src="/hero-bg.png"
             alt="Background"
             fill
-            className="object-cover opacity-30"
+            className="object-cover opacity-30 select-none pointer-events-none"
             priority
           />
           <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/80 via-zinc-950/80 to-zinc-950" />
