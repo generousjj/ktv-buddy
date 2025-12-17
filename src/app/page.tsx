@@ -31,7 +31,7 @@ export default function LandingPage() {
       <section className="relative flex-1 flex flex-col items-center justify-center text-center px-6 py-20 overflow-hidden">
         {/* Background Effects */}
         <div className="absolute inset-0 z-0">
-          <Image src="/ktv-buddy.png" alt="KTV Buddy mascot" width={40} height={40} className="absolute top-4 left-4 object-contain" />
+
           <Image
             src="/hero-bg.png"
             alt="Background"
@@ -48,6 +48,13 @@ export default function LandingPage() {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
             {t('landing.badge')}
+            <Image
+              src="/ktv-buddy.png"
+              alt="KTV Buddy mascot"
+              width={24}
+              height={24}
+              className="object-contain"
+            />
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-400">
