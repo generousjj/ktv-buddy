@@ -12,6 +12,7 @@ export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave }: {
 }) {
     const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
     const [isRegenerating, setIsRegenerating] = useState(false)
+    const [generatedCount, setGeneratedCount] = useState(0)
 
     return (
         <div className="h-full flex flex-col bg-zinc-950">
@@ -98,7 +99,7 @@ export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave }: {
                                     newEnglish[i] = e.target.value
                                     onChange(hanzi, pinyin, newEnglish)
                                 }}
-                                className="w-full bg-transparent border-none focus:outline-none focus:bg-zinc-900 p-2 md:p-3 text-zinc-400 text-base md:text-sm"
+                                className={`w-full bg-transparent border-none focus:outline-none focus:bg-zinc-900 p-2 md:p-3 text-base md:text-sm transition-all duration-300 ${isRegenerating && i >= generatedCount ? 'animate-pulse text-emerald-500/50 blur-[0.5px]' : 'text-zinc-400'}`}
                                 placeholder="English Translation"
                             />
                         </div>
@@ -117,6 +118,7 @@ export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave }: {
                 onConfirm={() => {
                     setShowRegenerateConfirm(false);
                     setIsRegenerating(true);
+                    setGeneratedCount(0);
 
                     // Trigger regeneration logic
                     (async () => {
@@ -163,6 +165,7 @@ export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave }: {
                                                     currentEnglish[start + i] = data[i]
                                                 }
                                             }
+                                            setGeneratedCount(start + data.length)
                                             onChange(hanzi, currentPinyin, currentEnglish)
                                         } else if (msg.type === 'error') {
                                             console.error('Stream error:', msg.message)
@@ -181,6 +184,7 @@ export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave }: {
                             alert('An error occurred during regeneration. Please try again.')
                         } finally {
                             setIsRegenerating(false)
+                            setGeneratedCount(hanzi.length)
                         }
                     })()
                 }}
