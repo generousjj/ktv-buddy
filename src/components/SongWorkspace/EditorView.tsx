@@ -100,7 +100,7 @@ export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave }: {
                                     onChange(hanzi, pinyin, newEnglish)
                                 }}
                                 className={`w-full bg-transparent border-none focus:outline-none focus:bg-zinc-900 p-2 md:p-3 text-base md:text-sm transition-all duration-300 ${isRegenerating && i >= generatedCount ? 'animate-pulse text-emerald-500/50 blur-[0.5px]' : 'text-zinc-400'}`}
-                                placeholder="English Translation"
+                                placeholder={hanzi[i]}
                             />
                         </div>
                     </div>
