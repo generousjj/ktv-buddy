@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 
-export function EditorView({ hanzi, pinyin, english, onChange }: {
+export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave }: {
     hanzi: string[],
     pinyin: string[],
     english: string[],
-    onChange: (h: string[], p: string[], e: string[]) => void
+    onChange: (h: string[], p: string[], e: string[]) => void,
+    onAutoSave?: (h: string[], p: string[], e: string[]) => void
 }) {
     const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
     const [isRegenerating, setIsRegenerating] = useState(false)
@@ -127,7 +128,11 @@ export function EditorView({ hanzi, pinyin, english, onChange }: {
                             })
                             if (res.ok) {
                                 const { pinyin: newPinyin, english: newEnglish } = await res.json()
-                                onChange(hanzi, newPinyin, newEnglish)
+                                if (onAutoSave) {
+                                    onAutoSave(hanzi, newPinyin, newEnglish)
+                                } else {
+                                    onChange(hanzi, newPinyin, newEnglish)
+                                }
                             }
                         } catch (e) {
                             console.error(e)

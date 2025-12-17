@@ -56,6 +56,34 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
         }
     }
 
+    const handleBulkUpdate = (h: string[], p: string[], e: string[]) => {
+        // Update local state
+        setHanzi(h)
+        setPinyin(p)
+        setEnglish(e)
+
+        // Auto-save
+        setSaving(true)
+        try {
+            SongStore.save({
+                id: initialData.id,
+                title: initialData.title || undefined,
+                artist: initialData.artist || undefined,
+                createdAt: initialData.createdAt,
+                versionId: initialData.versionId,
+                hanzi: h,
+                pinyin: p,
+                english: e,
+                lrcJson: initialData.lrcJson,
+                audioUrl
+            })
+        } catch (err) {
+            console.error(err)
+        } finally {
+            setSaving(false)
+        }
+    }
+
     const handleExport = () => {
         const data = {
             title: initialData.title,
@@ -121,7 +149,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
             </header>
 
             <div className="flex-1 overflow-hidden relative">
-                {activeTab === 'editor' && <EditorView hanzi={hanzi} pinyin={pinyin} english={english} onChange={(h: string[], p: string[], e: string[]) => { setHanzi(h); setPinyin(p); setEnglish(e); }} />}
+                {activeTab === 'editor' && <EditorView hanzi={hanzi} pinyin={pinyin} english={english} onChange={(h: string[], p: string[], e: string[]) => { setHanzi(h); setPinyin(p); setEnglish(e); }} onAutoSave={handleBulkUpdate} />}
                 {activeTab === 'unified' && <UnifiedView hanzi={hanzi} pinyin={pinyin} english={english} lrcJson={initialData.lrcJson} audioUrl={audioUrl} onAudioUrlSave={(url) => { setAudioUrl(url); handleSave(); }} />}
                 {activeTab === 'karaoke' && <KaraokeView hanzi={hanzi} pinyin={pinyin} english={english} />}
                 {activeTab === 'export' && (
