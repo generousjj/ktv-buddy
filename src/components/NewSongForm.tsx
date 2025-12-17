@@ -65,14 +65,9 @@ export function NewSongForm() {
             const hanziLines = normalizeChineseLyrics(lyricsText)
             if (hanziLines.length === 0) throw new Error('No valid lyrics found.')
 
-            // Start simulated progress
+            // Start progress
             setProgress(0)
-            const interval = setInterval(() => {
-                setProgress(prev => {
-                    if (prev >= 90) return prev
-                    return prev + 5
-                })
-            }, 800)
+            const totalLines = hanziLines.length
 
             const res = await fetch('/api/generate', {
                 method: 'POST',
@@ -80,31 +75,75 @@ export function NewSongForm() {
                 headers: { 'Content-Type': 'application/json' }
             })
 
-            clearInterval(interval)
+            if (!res.body) throw new Error('No stream body')
 
-            // Check if cancelled (by checking if ID is still selected)
-            // Note: Since this is closure, we need to check current state.
-            // But we can't access current state easily in closure without ref.
-            // However, resetting loading state via cancel will prevent UI lock, 
-            // but this logic will still push if successful.
-            // For now, accept that "Cancel" is UI-reset primarily.
-            setProgress(100)
+            const reader = res.body.getReader()
+            const decoder = new TextDecoder()
+            let buffer = ''
 
-            if (!res.ok) {
-                const err = await res.json()
-                throw new Error(err.error || 'Failed to generate')
+            let finalPinyin: string[] = []
+            let finalEnglish: string[] = []
+            let processedCount = 0
+
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+
+                buffer += decoder.decode(value, { stream: true })
+                const lines = buffer.split('\n')
+                buffer = lines.pop() || ''
+
+                for (const line of lines) {
+                    if (!line.trim()) continue
+                    try {
+                        const msg = JSON.parse(line)
+                        if (msg.type === 'pinyin') {
+                            finalPinyin = msg.data
+                        } else if (msg.type === 'english') {
+                            const { chunkIndex, data } = msg
+                            const start = chunkIndex * 10
+                            for (let i = 0; i < data.length; i++) {
+                                finalEnglish[start + i] = data[i]
+                            }
+                            processedCount += data.length
+                            setProgress(Math.min(99, Math.round((processedCount / totalLines) * 100)))
+                        } else if (msg.type === 'error') {
+                            throw new Error(msg.message)
+                        }
+                    } catch (e) {
+                        console.warn('JSON Parse Error', e)
+                    }
+                }
             }
 
-            const { pinyin, english } = await res.json()
+            if (buffer.trim()) {
+                try {
+                    const msg = JSON.parse(buffer)
+                    if (msg.type === 'pinyin') finalPinyin = msg.data
+                    else if (msg.type === 'english') {
+                        const { chunkIndex, data } = msg
+                        const start = chunkIndex * 10
+                        for (let i = 0; i < data.length; i++) {
+                            finalEnglish[start + i] = data[i]
+                        }
+                    }
+                } catch (e) { }
+            }
 
-            // Final check before redirect (hacky but works for simple case if we check a ref - but ref not implemented yet)
-            // Let's just proceed.
+            setProgress(100)
+
+            // Normalize arrays
+            for (let i = 0; i < totalLines; i++) {
+                if (finalEnglish[i] === undefined) finalEnglish[i] = ''
+                if (finalPinyin[i] === undefined) finalPinyin[i] = ''
+            }
+
             const result = SongStore.save({
                 title: track.name,
                 artist: track.artistName,
                 hanzi: hanziLines,
-                pinyin: pinyin,
-                english: english,
+                pinyin: finalPinyin,
+                english: finalEnglish,
                 lrcJson: track.syncedLyrics || null
             })
 
@@ -127,39 +166,86 @@ export function NewSongForm() {
             const hanziLines = normalizeChineseLyrics(lyrics)
             if (hanziLines.length === 0) throw new Error('No valid lyrics found after normalization.')
 
-            // Start simulated progress
+            // Start progress
             setProgress(0)
-            const interval = setInterval(() => {
-                setProgress(prev => {
-                    if (prev >= 90) return prev
-                    return prev + 5
-                })
-            }, 800)
+            const totalLines = hanziLines.length
 
-            // Generate
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 body: JSON.stringify({ hanziLines, options: { toneNumbers: false } }),
                 headers: { 'Content-Type': 'application/json' }
             })
 
-            clearInterval(interval)
-            setProgress(100)
+            if (!res.body) throw new Error('No stream body')
 
-            if (!res.ok) {
-                const err = await res.json()
-                throw new Error(err.error || 'Failed to generate')
+            const reader = res.body.getReader()
+            const decoder = new TextDecoder()
+            let buffer = ''
+
+            let finalPinyin: string[] = []
+            let finalEnglish: string[] = []
+            let processedCount = 0
+
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+
+                buffer += decoder.decode(value, { stream: true })
+                const lines = buffer.split('\n')
+                buffer = lines.pop() || ''
+
+                for (const line of lines) {
+                    if (!line.trim()) continue
+                    try {
+                        const msg = JSON.parse(line)
+                        if (msg.type === 'pinyin') {
+                            finalPinyin = msg.data
+                        } else if (msg.type === 'english') {
+                            const { chunkIndex, data } = msg
+                            const start = chunkIndex * 10
+                            for (let i = 0; i < data.length; i++) {
+                                finalEnglish[start + i] = data[i]
+                            }
+                            processedCount += data.length
+                            setProgress(Math.min(99, Math.round((processedCount / totalLines) * 100)))
+                        } else if (msg.type === 'error') {
+                            throw new Error(msg.message)
+                        }
+                    } catch (e) {
+                        console.warn('JSON Parse Error', e)
+                    }
+                }
             }
 
-            const { pinyin, english } = await res.json()
+            if (buffer.trim()) {
+                try {
+                    const msg = JSON.parse(buffer)
+                    if (msg.type === 'pinyin') finalPinyin = msg.data
+                    else if (msg.type === 'english') {
+                        const { chunkIndex, data } = msg
+                        const start = chunkIndex * 10
+                        for (let i = 0; i < data.length; i++) {
+                            finalEnglish[start + i] = data[i]
+                        }
+                    }
+                } catch (e) { }
+            }
+
+            setProgress(100)
+
+            // Normalize arrays
+            for (let i = 0; i < totalLines; i++) {
+                if (finalEnglish[i] === undefined) finalEnglish[i] = ''
+                if (finalPinyin[i] === undefined) finalPinyin[i] = ''
+            }
 
             // Save
             const result = SongStore.save({
                 title: title || 'Untitled Song',
                 artist: artist || 'Unknown Artist',
                 hanzi: hanziLines,
-                pinyin,
-                english,
+                pinyin: finalPinyin,
+                english: finalEnglish,
                 lrcJson: null
             })
 
