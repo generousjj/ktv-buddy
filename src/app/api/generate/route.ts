@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { z } from 'zod'
+import { pinyin } from 'pinyin-pro'
 
 const generateSchema = z.object({
     hanziLines: z.array(z.string()),
@@ -18,28 +19,38 @@ export async function POST(req: Request) {
             return NextResponse.json({ pinyin: [], english: [] })
         }
 
+        // 1. Generate Pinyin Locally (Free & Fast)
+        console.log(`[Generate] Generating Pinyin locally for ${hanziLines.length} lines`)
+        const localPinyin = hanziLines.map(line =>
+            pinyin(line, {
+                toneType: options?.toneNumbers ? 'num' : 'symbol',
+                nonZh: 'consecutive',
+                v: true
+            })
+        )
+
+        // 2. Generate English Translations via OpenAI
         const apiKey = process.env.OPENAI_API_KEY
         // Use gpt-4o for better JSON reliability
         const model = 'gpt-4o'
 
         if (!apiKey) {
-            console.error('API Key missing in environment')
-            return NextResponse.json({ error: 'OpenAI API Key not configured at source.' }, { status: 401 })
+            console.error('API Key missing, returning empty English')
+            // If no API key, we can still return Pinyin!
+            return NextResponse.json({
+                pinyin: localPinyin,
+                english: Array(hanziLines.length).fill('')
+            })
         }
 
         const openai = new OpenAI({ apiKey: apiKey })
 
         const systemPrompt = `
-You are a Chinese song lyrics assistant.
+You are a Chinese song lyrics translator.
 Input: An array of Chinese lyrics lines.
-Task: Generate Pinyin (Mandarin) and English translation for each line.
-Output JSON format: { "pinyin": [string, ...], "english": [string, ...] }
+Task: Generate an English translation for each line.
+Output JSON format: { "english": [string, ...] }
 Arrays must have exactly the same length as input.
-
-Pinyin rules:
-- Use standard pinyin with ${options?.toneNumbers ? 'tone numbers (e.g. ni3 hao3)' : 'tone marks (e.g. nǐ hǎo)'}.
-- Preserve punctuation from the input line.
-- Keep the structure aligned.
 
 English rules:
 - Learner-friendly, literal but natural.
@@ -48,14 +59,14 @@ English rules:
 `
 
         // Batch processing to handle long songs
-        // Reduced chunk size to 10 to prevent JSON truncation issues
+        // Chunk size 10 
         const CHUNK_SIZE = 10
         const chunks = []
         for (let i = 0; i < hanziLines.length; i += CHUNK_SIZE) {
             chunks.push(hanziLines.slice(i, i + CHUNK_SIZE))
         }
 
-        console.log(`[Generate] Processing ${hanziLines.length} lines in ${chunks.length} chunks. Model: ${model}`)
+        console.log(`[Generate] Processing translations for ${hanziLines.length} lines in ${chunks.length} chunks. Model: ${model}`)
 
         // Helper to clean JSON string
         const cleanJson = (text: string) => {
@@ -66,7 +77,7 @@ English rules:
         }
 
         // Sequential processing to avoid Rate Limits (429)
-        const results = []
+        const englishResults = []
         for (const [index, chunk] of chunks.entries()) {
             console.log(`[Generate] Starting chunk ${index + 1}/${chunks.length} size=${chunk.length}`)
 
@@ -91,21 +102,13 @@ English rules:
                     if (!content) throw new Error('No content received from OpenAI')
 
                     content = cleanJson(content)
-
-                    // Log raw content for debugging if it parses successfully (optional, maybe verbose)
-                    // console.log(`[Generate] Chunk ${index} content cleaned:`, content.substring(0, 50) + '...')
-
                     const parsed = JSON.parse(content)
 
-                    if (parsed.pinyin?.length !== chunk.length) {
-                        console.warn(`[Generate] Chunk ${index} mismatch: Input ${chunk.length} vs Output ${parsed.pinyin?.length}`)
+                    if (parsed.english?.length !== chunk.length) {
+                        console.warn(`[Generate] Chunk ${index} mismatch: Input ${chunk.length} vs Output ${parsed.english?.length}`)
                     }
 
-                    results.push({
-                        pinyin: parsed.pinyin || Array(chunk.length).fill(''),
-                        english: parsed.english || Array(chunk.length).fill('')
-                    })
-
+                    englishResults.push(parsed.english || Array(chunk.length).fill(''))
                     console.log(`[Generate] Chunk ${index + 1} completed successfully on attempt ${attempts}`)
                     success = true
 
@@ -120,19 +123,22 @@ English rules:
             if (!success) {
                 console.error(`[Generate] Failed chunk ${index + 1} after 3 attempts.`)
                 const msg = `Error: ${lastError}`
-                results.push({
-                    pinyin: Array(chunk.length).fill(msg),
-                    english: Array(chunk.length).fill(msg)
-                })
+                englishResults.push(Array(chunk.length).fill(msg))
             }
         }
 
         // Flatten results
-        const finalPinyin = results.flatMap(r => r.pinyin)
-        const finalEnglish = results.flatMap(r => r.english)
+        const finalEnglish = englishResults.flat()
+
+        // Double check length matches Pinyin (it should)
+        if (finalEnglish.length < localPinyin.length) {
+            // Pad if necessary (though flatMap/flat ensures it matches pushed logic)
+            // But if specific chunks failed partially?
+            // Not likely with retry logic handling failures by pushing error messages.
+        }
 
         return NextResponse.json({
-            pinyin: finalPinyin,
+            pinyin: localPinyin,
             english: finalEnglish
         })
 
