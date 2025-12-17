@@ -64,18 +64,16 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
     const [playerMounted, setPlayerMounted] = useState(false)
     const startTimeRef = useRef<number>(0)
 
-    // Player State
-    const [playing, setPlaying] = useState(false)
-    const [currentTime, setCurrentTime] = useState(0)
-    const [duration, setDuration] = useState(0)
-    const [playerMounted, setPlayerMounted] = useState(false)
-    const playerRef = useRef<any>(null)
+
 
     console.log('[UnifiedView] Render. Mounted:', playerMounted, 'AudioURL:', audioUrl)
 
     // Parse Sync Info
     const syncedLines = lrcJson ? parseLrc(lrcJson) : []
     const hasSync = syncedLines.length > 0
+
+    // Calculate effective duration consistently
+    const effectiveDuration = duration || (hasSync && syncedLines.length > 0 ? syncedLines[syncedLines.length - 1].time + 10 : 0) || 0
 
     // Local state for editing URL if not present
     const [newAudioUrl, setNewAudioUrl] = useState('')
@@ -151,7 +149,6 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
     }
 
     // Timer for manual playback (no audio source)
-    // Timer for manual playback (no audio source)
     useEffect(() => {
         let interval: NodeJS.Timeout
         if (playing /* && !audioUrl */) {
@@ -160,12 +157,19 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
 
             interval = setInterval(() => {
                 const now = Date.now()
-                const elapsed = (now - startTimeRef.current) / 1000
+                let elapsed = (now - startTimeRef.current) / 1000
+
+                // Auto-stop if we exceed effective duration (only in manual mode)
+                if (effectiveDuration > 0 && elapsed >= effectiveDuration) {
+                    elapsed = effectiveDuration
+                    setPlaying(false)
+                }
+
                 setCurrentTime(elapsed)
             }, 30)
         }
         return () => clearInterval(interval)
-    }, [playing])
+    }, [playing, effectiveDuration])
 
     // ...
 
@@ -253,7 +257,7 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                      */}
                                     {/* Display computed duration if available, otherwise 00:00 or current implies unknown */}
                                     <span>
-                                        {new Date((duration || (hasSync && syncedLines.length > 0 ? syncedLines[syncedLines.length - 1].time + 10 : 0) || currentTime) * 1000).toISOString().substr(14, 5)}
+                                        {new Date((effectiveDuration || currentTime) * 1000).toISOString().substr(14, 5)}
                                     </span>
                                 </div>
                             </div>
@@ -264,7 +268,7 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                 onClick={(e) => {
                                     const rect = e.currentTarget.getBoundingClientRect()
                                     const percent = (e.clientX - rect.left) / rect.width
-                                    const newTime = percent * (duration || 240) // Default to 4m if no duration
+                                    const newTime = percent * (effectiveDuration || 240) // Default to 4m if no duration
 
                                     setCurrentTime(newTime)
                                     startTimeRef.current = Date.now() - newTime * 1000
@@ -276,7 +280,7 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                             >
                                 <div
                                     className="absolute left-0 top-0 bottom-0 bg-emerald-500 transition-all duration-100 ease-linear rounded-full"
-                                    style={{ width: `${(currentTime / (duration || 240)) * 100}%` }}
+                                    style={{ width: `${Math.min(100, (currentTime / (effectiveDuration || 240)) * 100)}%` }}
                                 />
                             </div>
                         </div>
