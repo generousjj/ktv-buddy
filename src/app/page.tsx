@@ -129,6 +129,16 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+
+          <div className="mt-16 text-center">
+            <Link
+              href="/app"
+              className="group relative inline-flex h-12 items-center justify-center overflow-hidden rounded-full bg-emerald-500 px-8 font-medium text-white transition-all duration-300 hover:bg-emerald-600 hover:scale-105 hover:shadow-[0_0_40px_8px_rgba(16,185,129,0.3)]"
+            >
+              <span className="mr-2">{t('landing.cta.start')}</span>
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
         </div>
       </section>
 
