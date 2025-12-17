@@ -234,9 +234,23 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [locale, setLocaleState] = useState<Locale>('en')
 
     useEffect(() => {
-        const saved = localStorage.getItem('ktv-locale') as Locale
-        if (saved && (saved === 'en' || saved === 'zh-CN' || saved === 'zh-TW')) {
-            setLocaleState(saved)
+        // Check URL params first
+        const params = new URLSearchParams(window.location.search)
+        const langParam = params.get('lang') || params.get('locale')
+
+        let initial: Locale | null = null
+        if (langParam === 'zh-CN' || langParam === 'zh-TW' || langParam === 'en') {
+            initial = langParam as Locale
+        }
+
+        if (initial) {
+            setLocaleState(initial)
+            localStorage.setItem('ktv-locale', initial)
+        } else {
+            const saved = localStorage.getItem('ktv-locale') as Locale
+            if (saved && (saved === 'en' || saved === 'zh-CN' || saved === 'zh-TW')) {
+                setLocaleState(saved)
+            }
         }
     }, [])
 
