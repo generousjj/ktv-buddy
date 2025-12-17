@@ -51,7 +51,7 @@ export function NewSongForm() {
         setProgress(0)
     }
 
-    const handleSelectSong = async (track: any) => {
+    const handleSelectSong = (track: any) => {
         setLoading(true)
         setSelectedTrackId(track.id)
         setError('')
@@ -65,85 +65,14 @@ export function NewSongForm() {
             const hanziLines = normalizeChineseLyrics(lyricsText)
             if (hanziLines.length === 0) throw new Error('No valid lyrics found.')
 
-            // Start progress
-            setProgress(0)
-            const totalLines = hanziLines.length
-
-            const res = await fetch('/api/generate', {
-                method: 'POST',
-                body: JSON.stringify({ hanziLines, options: { toneNumbers: false } }),
-                headers: { 'Content-Type': 'application/json' }
-            })
-
-            if (!res.body) throw new Error('No stream body')
-
-            const reader = res.body.getReader()
-            const decoder = new TextDecoder()
-            let buffer = ''
-
-            let finalPinyin: string[] = []
-            let finalEnglish: string[] = []
-            let processedCount = 0
-
-            while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-
-                buffer += decoder.decode(value, { stream: true })
-                const lines = buffer.split('\n')
-                buffer = lines.pop() || ''
-
-                for (const line of lines) {
-                    if (!line.trim()) continue
-                    try {
-                        const msg = JSON.parse(line)
-                        if (msg.type === 'pinyin') {
-                            finalPinyin = msg.data
-                        } else if (msg.type === 'english') {
-                            const { chunkIndex, data } = msg
-                            const start = chunkIndex * 10
-                            for (let i = 0; i < data.length; i++) {
-                                finalEnglish[start + i] = data[i]
-                            }
-                            processedCount += data.length
-                            setProgress(Math.min(99, Math.round((processedCount / totalLines) * 100)))
-                        } else if (msg.type === 'error') {
-                            throw new Error(msg.message)
-                        }
-                    } catch (e) {
-                        console.warn('JSON Parse Error', e)
-                    }
-                }
-            }
-
-            if (buffer.trim()) {
-                try {
-                    const msg = JSON.parse(buffer)
-                    if (msg.type === 'pinyin') finalPinyin = msg.data
-                    else if (msg.type === 'english') {
-                        const { chunkIndex, data } = msg
-                        const start = chunkIndex * 10
-                        for (let i = 0; i < data.length; i++) {
-                            finalEnglish[start + i] = data[i]
-                        }
-                    }
-                } catch (e) { }
-            }
-
-            setProgress(100)
-
-            // Normalize arrays
-            for (let i = 0; i < totalLines; i++) {
-                if (finalEnglish[i] === undefined) finalEnglish[i] = ''
-                if (finalPinyin[i] === undefined) finalPinyin[i] = ''
-            }
-
+            // Save immediately with empty pinyin/english
+            // The Workspace will handle generation
             const result = SongStore.save({
                 title: track.name,
                 artist: track.artistName,
                 hanzi: hanziLines,
-                pinyin: finalPinyin,
-                english: finalEnglish,
+                pinyin: [], // Empty indicates it needs generation
+                english: [],
                 lrcJson: track.syncedLyrics || null
             })
 
@@ -155,7 +84,7 @@ export function NewSongForm() {
         }
     }
 
-    const handlePasteSubmit = async (e: React.FormEvent) => {
+    const handlePasteSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if (!lyrics) return
 
@@ -166,86 +95,13 @@ export function NewSongForm() {
             const hanziLines = normalizeChineseLyrics(lyrics)
             if (hanziLines.length === 0) throw new Error('No valid lyrics found after normalization.')
 
-            // Start progress
-            setProgress(0)
-            const totalLines = hanziLines.length
-
-            const res = await fetch('/api/generate', {
-                method: 'POST',
-                body: JSON.stringify({ hanziLines, options: { toneNumbers: false } }),
-                headers: { 'Content-Type': 'application/json' }
-            })
-
-            if (!res.body) throw new Error('No stream body')
-
-            const reader = res.body.getReader()
-            const decoder = new TextDecoder()
-            let buffer = ''
-
-            let finalPinyin: string[] = []
-            let finalEnglish: string[] = []
-            let processedCount = 0
-
-            while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-
-                buffer += decoder.decode(value, { stream: true })
-                const lines = buffer.split('\n')
-                buffer = lines.pop() || ''
-
-                for (const line of lines) {
-                    if (!line.trim()) continue
-                    try {
-                        const msg = JSON.parse(line)
-                        if (msg.type === 'pinyin') {
-                            finalPinyin = msg.data
-                        } else if (msg.type === 'english') {
-                            const { chunkIndex, data } = msg
-                            const start = chunkIndex * 10
-                            for (let i = 0; i < data.length; i++) {
-                                finalEnglish[start + i] = data[i]
-                            }
-                            processedCount += data.length
-                            setProgress(Math.min(99, Math.round((processedCount / totalLines) * 100)))
-                        } else if (msg.type === 'error') {
-                            throw new Error(msg.message)
-                        }
-                    } catch (e) {
-                        console.warn('JSON Parse Error', e)
-                    }
-                }
-            }
-
-            if (buffer.trim()) {
-                try {
-                    const msg = JSON.parse(buffer)
-                    if (msg.type === 'pinyin') finalPinyin = msg.data
-                    else if (msg.type === 'english') {
-                        const { chunkIndex, data } = msg
-                        const start = chunkIndex * 10
-                        for (let i = 0; i < data.length; i++) {
-                            finalEnglish[start + i] = data[i]
-                        }
-                    }
-                } catch (e) { }
-            }
-
-            setProgress(100)
-
-            // Normalize arrays
-            for (let i = 0; i < totalLines; i++) {
-                if (finalEnglish[i] === undefined) finalEnglish[i] = ''
-                if (finalPinyin[i] === undefined) finalPinyin[i] = ''
-            }
-
-            // Save
+            // Save immediately
             const result = SongStore.save({
                 title: title || 'Untitled Song',
                 artist: artist || 'Unknown Artist',
                 hanzi: hanziLines,
-                pinyin: finalPinyin,
-                english: finalEnglish,
+                pinyin: [],
+                english: [],
                 lrcJson: null
             })
 
@@ -253,7 +109,6 @@ export function NewSongForm() {
 
         } catch (err: any) {
             setError(err.message)
-        } finally {
             setLoading(false)
         }
     }
@@ -323,7 +178,7 @@ export function NewSongForm() {
                             className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
                         >
                             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {loading ? `${t('newSong.processing')} ${progress}%` : t('newSong.submit')}
+                            {loading ? t('song.saving') : t('newSong.submit')}
                         </button>
                     </form>
                 )}

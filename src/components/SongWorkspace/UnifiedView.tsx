@@ -45,9 +45,10 @@ interface UnifiedViewProps {
     lrcJson?: string | null
     audioUrl?: string | null
     onAudioUrlSave?: (url: string) => void
+    isGenerating?: boolean
 }
 
-export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudioUrlSave }: UnifiedViewProps) {
+export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudioUrlSave, isGenerating }: UnifiedViewProps) {
     const { t } = useLanguage()
     const [activeIndex, setActiveIndex] = useState(0)
 
@@ -173,6 +174,22 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
 
     // ...
 
+    // Check if we are waiting for Pinyin
+    // If we are generating, and the first pinyin line is empty, assume we are waiting for Pinyin
+    const waitingForPinyin = isGenerating && (!pinyin[0] || pinyin[0] === '')
+
+    if (waitingForPinyin) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center bg-zinc-950 text-emerald-500 gap-4">
+                <div className="relative w-16 h-16">
+                    <span className="absolute inset-0 border-4 border-zinc-800 rounded-full"></span>
+                    <span className="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></span>
+                </div>
+                <p className="font-mono text-sm animate-pulse">Generating Pinyin...</p>
+            </div>
+        )
+    }
+
     return (
         <div className="h-full flex flex-col relative bg-zinc-950 isolate">
             {/* List Container */}
@@ -186,6 +203,8 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                     )}
                     {hanzi.map((line, i) => {
                         const isActive = i === activeIndex
+                        const isEnglishLoading = isGenerating && (!english[i] || english[i] === '')
+
                         return (
                             <div
                                 key={i}
@@ -218,9 +237,10 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                     {/* English */}
                                     <p className={cn(
                                         "text-zinc-400 transition-all font-light",
-                                        isActive ? "text-lg md:text-xl" : "text-sm md:text-base"
+                                        isActive ? "text-lg md:text-xl" : "text-sm md:text-base",
+                                        isEnglishLoading && "text-emerald-500/50 text-sm animate-pulse italic"
                                     )}>
-                                        {english[i] || '\u00A0'}
+                                        {isEnglishLoading ? 'Translating...' : (english[i] || '\u00A0')}
                                     </p>
                                 </div>
                             </div>

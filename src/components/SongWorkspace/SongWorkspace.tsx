@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
 import { KaraokeView } from './KaraokeView'
@@ -32,6 +32,104 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
     const [english, setEnglish] = useState(initialData.english)
     const [audioUrl, setAudioUrl] = useState(initialData.audioUrl || '')
     const [saving, setSaving] = useState(false)
+    const [isGenerating, setIsGenerating] = useState(false)
+
+    // Auto-generate if only Hanzi exists (e.g. newly created)
+    useEffect(() => {
+        if (initialData.hanzi.length > 0 && (initialData.pinyin.length === 0 || initialData.pinyin.length !== initialData.hanzi.length)) {
+            handleGenerate()
+        }
+    }, [])
+
+    const handleGenerate = async () => {
+        if (isGenerating) return
+        setIsGenerating(true)
+
+        try {
+            const res = await fetch('/api/generate', {
+                method: 'POST',
+                body: JSON.stringify({ hanziLines: hanzi, options: { toneNumbers: false } }),
+                headers: { 'Content-Type': 'application/json' }
+            })
+
+            if (!res.body) throw new Error('No stream body')
+
+            const reader = res.body.getReader()
+            const decoder = new TextDecoder()
+            let buffer = '' // Handle partial chunks
+
+            let currentPinyin = [...pinyin]
+            // If starting fresh, ensure pinyin/english arrays match hanzi length (filled with empty strings initially)
+            if (currentPinyin.length !== hanzi.length) {
+                currentPinyin = Array(hanzi.length).fill('')
+            }
+
+            let currentEnglish = [...english]
+            if (currentEnglish.length !== hanzi.length) {
+                currentEnglish = Array(hanzi.length).fill('')
+            }
+
+            // Initial clear for clean generation if we are starting fresh or regenerating
+            // But if we want "instant", keeping old data while new overwrites is better?
+            // User request implies "populat[ing]... as it processes".
+            // If this is a new song, they are empty anyway.
+
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+
+                buffer += decoder.decode(value, { stream: true })
+                const lines = buffer.split('\n')
+                buffer = lines.pop() || '' // Keep last partial line
+
+                let pinyinUpdated = false
+                let englishUpdated = false
+
+                for (const line of lines) {
+                    if (!line.trim()) continue
+                    try {
+                        const msg = JSON.parse(line)
+                        if (msg.type === 'pinyin') {
+                            currentPinyin = msg.data
+                            pinyinUpdated = true
+                        } else if (msg.type === 'english') {
+                            const { chunkIndex, data } = msg
+                            const start = chunkIndex * 10
+                            for (let i = 0; i < data.length; i++) {
+                                if (start + i < currentEnglish.length) {
+                                    currentEnglish[start + i] = data[i]
+                                }
+                            }
+                            englishUpdated = true
+                        } else if (msg.type === 'error') {
+                            console.error('Stream error:', msg.message)
+                        }
+                    } catch (e) {
+                        console.warn('Stream parse error:', e)
+                    }
+                }
+
+                // Update state and save if changed
+                if (pinyinUpdated || englishUpdated) {
+                    setHanzi(hanzi) // Trigger re-render
+                    setPinyin([...currentPinyin])
+                    setEnglish([...currentEnglish])
+
+                    // We save incrementally so if they leave, they have partial progress
+                    handleBulkUpdate(hanzi, currentPinyin, currentEnglish)
+                }
+            }
+
+            // Final save
+            handleBulkUpdate(hanzi, currentPinyin, currentEnglish)
+
+        } catch (e) {
+            console.error("Generation error:", e)
+            alert('An error occurred during generation.')
+        } finally {
+            setIsGenerating(false)
+        }
+    }
 
     const handleSave = () => {
         setSaving(true)
@@ -48,7 +146,6 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 lrcJson: initialData.lrcJson,
                 audioUrl
             })
-            // Optional: Show success toast
         } catch (e) {
             console.error(e)
         } finally {
@@ -149,8 +246,8 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
             </header>
 
             <div className="flex-1 overflow-hidden relative">
-                {activeTab === 'editor' && <EditorView hanzi={hanzi} pinyin={pinyin} english={english} onChange={(h: string[], p: string[], e: string[]) => { setHanzi(h); setPinyin(p); setEnglish(e); }} onAutoSave={handleBulkUpdate} />}
-                {activeTab === 'unified' && <UnifiedView hanzi={hanzi} pinyin={pinyin} english={english} lrcJson={initialData.lrcJson} audioUrl={audioUrl} onAudioUrlSave={(url) => { setAudioUrl(url); handleSave(); }} />}
+                {activeTab === 'editor' && <EditorView hanzi={hanzi} pinyin={pinyin} english={english} onChange={(h: string[], p: string[], e: string[]) => { setHanzi(h); setPinyin(p); setEnglish(e); }} onAutoSave={handleBulkUpdate} isGenerating={isGenerating} onRegenerate={handleGenerate} />}
+                {activeTab === 'unified' && <UnifiedView hanzi={hanzi} pinyin={pinyin} english={english} lrcJson={initialData.lrcJson} audioUrl={audioUrl} onAudioUrlSave={(url) => { setAudioUrl(url); handleSave(); }} isGenerating={isGenerating} />}
                 {activeTab === 'karaoke' && <KaraokeView hanzi={hanzi} pinyin={pinyin} english={english} />}
                 {activeTab === 'export' && (
                     <div className="p-8 h-full flex items-center justify-center">
