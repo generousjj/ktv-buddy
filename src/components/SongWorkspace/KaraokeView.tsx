@@ -30,24 +30,21 @@ export function KaraokeView({ hanzi, pinyin, english }: { hanzi: string[], pinyi
     useLayoutEffect(() => {
         const adjustScale = () => {
             if (containerRef.current && contentRef.current) {
-                // Reset to 1 to measure natural size
-                // We set it via style direct manipulation to avoid render cycle loop issues if measuring checks current style
-                // but since we read 'scale' state in render, we assume render is clean.
-                // However, measuring getBoundingClientRect() respects current transform.
-                // So we MUST compute based on unscaled.
-
                 // Get container dimensions
                 const { width: filesW, height: containerH } = containerRef.current.getBoundingClientRect()
 
-                // Temporarily remove transform to measure content's intrinsic size
-                contentRef.current.style.transform = 'none'
-                const { width: contentW, height: contentH } = contentRef.current.getBoundingClientRect()
+                // Layout size (untransformed)
+                // We use scrollWidth to be safe in case of any internal overflow, though w-max should handle it.
+                // scrollWidth is generally robust for "content size".
+                const contentW = contentRef.current.scrollWidth
+                const contentH = contentRef.current.scrollHeight
 
-                // Restore logic (React will apply via style prop next, but for now...)
+                const paddingX = 40
+                const paddingY = 40
+                const availableH = containerH - paddingY
+                const availableW = filesW - (paddingX * 2)
 
-                const padding = 40
-                const availableH = containerH - padding
-                const availableW = filesW - padding // Use filesW (container width)
+                if (contentW === 0 || contentH === 0) return
 
                 const scaleH = availableH / contentH
                 const scaleW = availableW / contentW
@@ -70,21 +67,21 @@ export function KaraokeView({ hanzi, pinyin, english }: { hanzi: string[], pinyi
             <div ref={containerRef} className="flex-1 flex items-center justify-center w-full max-w-6xl mx-auto min-h-0 overflow-hidden relative">
                 <div
                     ref={contentRef}
-                    className="flex flex-col gap-6 md:gap-10 items-center justify-center text-center w-max origin-center"
+                    className="flex flex-col gap-6 md:gap-8 items-center justify-center text-center w-max origin-center px-4"
                     style={{ transform: `scale(${scale})` }}
                 >
                     {/* Pinyin */}
-                    <p className="text-3xl md:text-5xl text-emerald-400 font-mono opacity-90 leading-relaxed whitespace-pre">
+                    <p className="w-full text-5xl md:text-7xl text-emerald-400 font-mono opacity-90 leading-tight whitespace-pre">
                         {pinyin[currentIndex] || '\u00A0'}
                     </p>
 
                     {/* Hanzi */}
-                    <h2 className="text-7xl md:text-9xl font-black text-white tracking-wide leading-tight whitespace-pre py-2">
+                    <h2 className="w-full text-7xl md:text-9xl font-black text-white tracking-wide leading-tight whitespace-pre py-2">
                         {hanzi[currentIndex] || ''}
                     </h2>
 
                     {/* English */}
-                    <p className="text-2xl md:text-4xl text-zinc-400 font-light leading-relaxed whitespace-pre">
+                    <p className="w-full text-4xl md:text-6xl text-zinc-400 font-light leading-tight whitespace-pre">
                         {english[currentIndex] || '\u00A0'}
                     </p>
                 </div>
