@@ -70,21 +70,21 @@ export function KaraokeView({ hanzi, pinyin, english }: { hanzi: string[], pinyi
             <div ref={containerRef} className="flex-1 flex items-center justify-center w-full max-w-6xl mx-auto min-h-0 overflow-hidden relative">
                 <div
                     ref={contentRef}
-                    className="flex flex-col gap-6 md:gap-10 items-center justify-center text-center w-full origin-center"
+                    className="flex flex-col gap-6 md:gap-10 items-center justify-center text-center w-max origin-center"
                     style={{ transform: `scale(${scale})` }}
                 >
                     {/* Pinyin */}
-                    <p className="text-3xl md:text-5xl text-emerald-400 font-mono opacity-90 leading-relaxed whitespace-pre-wrap">
+                    <p className="text-3xl md:text-5xl text-emerald-400 font-mono opacity-90 leading-relaxed whitespace-pre">
                         {pinyin[currentIndex] || '\u00A0'}
                     </p>
 
                     {/* Hanzi */}
-                    <h2 className="text-7xl md:text-9xl font-black text-white tracking-wide leading-tight whitespace-pre-wrap py-2">
+                    <h2 className="text-7xl md:text-9xl font-black text-white tracking-wide leading-tight whitespace-pre py-2">
                         {hanzi[currentIndex] || ''}
                     </h2>
 
                     {/* English */}
-                    <p className="text-2xl md:text-4xl text-zinc-400 font-light leading-relaxed whitespace-pre-wrap max-w-4xl mx-auto">
+                    <p className="text-2xl md:text-4xl text-zinc-400 font-light leading-relaxed whitespace-pre">
                         {english[currentIndex] || '\u00A0'}
                     </p>
                 </div>
