@@ -27,7 +27,7 @@ export function KaraokeView({ hanzi, pinyin, english }: { hanzi: string[], pinyi
     return (
         <div className="h-full flex flex-col items-center justify-between p-8 bg-black">
             <div className="flex-1 flex flex-col items-center justify-center w-full max-w-5xl mx-auto min-h-0">
-                <div className="flex flex-col gap-8 md:gap-12 justify-center text-center w-full py-8 overflow-y-auto custom-scrollbar">
+                <div className="flex flex-col gap-8 md:gap-12 justify-center text-center w-full max-h-full py-8 overflow-y-auto custom-scrollbar">
                     {/* Pinyin */}
                     <p className="text-3xl md:text-5xl text-emerald-400 font-mono opacity-90 transition-all duration-300 leading-relaxed break-words">
                         {pinyin[currentIndex] || '\u00A0'}

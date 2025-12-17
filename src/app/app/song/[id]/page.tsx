@@ -34,5 +34,9 @@ export default function SongPage() {
 
     if (!song) return null
 
-    return <SongWorkspace initialData={song} />
+    return (
+        <div className="h-[calc(100dvh-4rem)] md:h-[100dvh] w-full overflow-hidden">
+            <SongWorkspace initialData={song} />
+        </div>
+    )
 }
