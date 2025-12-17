@@ -22,8 +22,8 @@ export function EditorView({ hanzi, pinyin, english, onChange }: {
                         onClick={() => !isRegenerating && setShowRegenerateConfirm(true)}
                         disabled={isRegenerating}
                         className={`text-[10px] px-2 py-0.5 rounded transition-colors flex items-center gap-1.5 ${isRegenerating
-                                ? 'bg-zinc-800 text-zinc-500 cursor-wait'
-                                : 'bg-zinc-800 hover:bg-zinc-700 text-emerald-400 cursor-pointer'
+                            ? 'bg-zinc-800 text-zinc-500 cursor-wait'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-emerald-400 cursor-pointer'
                             }`}
                     >
                         {isRegenerating ? (
@@ -36,6 +36,21 @@ export function EditorView({ hanzi, pinyin, english, onChange }: {
                 </div>
                 <div className="p-3 border-r border-zinc-800">Pinyin</div>
                 <div className="p-3">English</div>
+            </div>
+
+            {/* Mobile Actions Header */}
+            <div className="md:hidden flex items-center justify-between p-3 border-b border-zinc-800 bg-zinc-900/50">
+                <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Editor</span>
+                <button
+                    onClick={() => !isRegenerating && setShowRegenerateConfirm(true)}
+                    disabled={isRegenerating}
+                    className={`text-xs px-3 py-1.5 rounded-md transition-colors flex items-center gap-2 ${isRegenerating
+                        ? 'bg-zinc-800 text-zinc-500'
+                        : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20'
+                        }`}
+                >
+                    {isRegenerating ? 'Generating...' : 'Regenerate All'}
+                </button>
             </div>
 
             <div className="flex-1 overflow-auto divide-y divide-zinc-900">
