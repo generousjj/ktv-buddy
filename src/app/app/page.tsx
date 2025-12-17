@@ -4,12 +4,17 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PlusCircle, Music2, Loader2, Search, Trash2 } from 'lucide-react'
 import { SongStore, Song } from '@/lib/store'
+// @ts-ignore
+import * as OpenCC from 'opencc-js'
 import PinyinMatch from 'pinyin-match'
 
 import { ConfirmationModal } from '@/components/ConfirmationModal'
-
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useLanguage } from '@/lib/i18n'
+
+// Initialize converter outside component to avoid recreation
+// Convert Traditional (HK/TW mixed) to Simplified (CN)
+const converter = OpenCC.Converter({ from: 'hk', to: 'cn' })
 
 export default function LibraryPage() {
   const { t } = useLanguage()
@@ -26,13 +31,54 @@ export default function LibraryPage() {
     setLoading(false)
   }, [])
 
-  const filteredSongs = songs.filter(song => {
-    if (!searchQuery) return true
-    return (
-      PinyinMatch.match(song.title, searchQuery) ||
-      PinyinMatch.match(song.artist, searchQuery)
-    )
-  })
+  // Filter and Sort Songs
+  const filteredAndSortedSongs = (() => {
+    if (!searchQuery) return songs
+
+    const querySimp = converter(searchQuery)
+    const queryLower = searchQuery.toLowerCase() // For fallback English/Pinyin exact checks if needed
+
+    return songs
+      .map(song => {
+        let score = 0
+
+        // Prepare simplified versions
+        const titleSimp = converter(song.title || '')
+        const artistSimp = converter(song.artist || '')
+
+        // 1. Title Match
+        // Check Original & Simplified
+        const titleMatch = PinyinMatch.match(song.title || '', searchQuery) || PinyinMatch.match(titleSimp, querySimp)
+
+        if (titleMatch) {
+          // PinyinMatch returns [start, end] or boolean true (if strictly boolean version used, but library returns array)
+          // We assume array [start, end]. If boolean true, treat as start=0
+          const start = Array.isArray(titleMatch) ? titleMatch[0] : 0
+          // Score calculation:
+          // Base 1000
+          // Subtract position (earlier is better)
+          // Bonus for direct exact match?
+          score += 1000 - start
+
+          // Extra bonus if it is a very exact string match (case insensitive)
+          if ((song.title || '').toLowerCase().includes(queryLower)) score += 500
+        }
+
+        // 2. Artist Match
+        // Lower priority than title
+        const artistMatch = PinyinMatch.match(song.artist || '', searchQuery) || PinyinMatch.match(artistSimp, querySimp)
+
+        if (artistMatch) {
+          const start = Array.isArray(artistMatch) ? artistMatch[0] : 0
+          score += 500 - start // Base 500 for artist
+        }
+
+        return { song, score }
+      })
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.song)
+  })()
 
   // ...
 
@@ -96,13 +142,13 @@ export default function LibraryPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredSongs.length === 0 && searchQuery && (
+          {filteredAndSortedSongs.length === 0 && searchQuery && (
             <div className="text-center py-12 text-zinc-500">
               No songs found matching "{searchQuery}"
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredSongs.map(song => (
+            {filteredAndSortedSongs.map(song => (
               <div key={song.id} className="relative group">
                 <Link
                   href={`/app/song/${song.id}`}

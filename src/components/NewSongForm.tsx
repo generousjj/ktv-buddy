@@ -7,6 +7,13 @@ import { normalizeChineseLyrics } from '@/lib/utils'
 import { SongStore } from '@/lib/store'
 import { useLanguage } from '@/lib/i18n'
 
+// @ts-ignore
+import * as OpenCC from 'opencc-js'
+
+// Initialize converters outside component
+const converterToSimp = OpenCC.Converter({ from: 'hk', to: 'cn' })
+const converterToTrad = OpenCC.Converter({ from: 'cn', to: 'hk' })
+
 export function NewSongForm() {
     const { t } = useLanguage()
     const router = useRouter()
@@ -22,8 +29,8 @@ export function NewSongForm() {
 
     // Search State
     const [searchQuery, setSearchQuery] = useState('')
-    const [searching, setSearching] = useState(false) // Added searching state
-    const [searchResults, setSearchResults] = useState<any[]>([]) // Added searchResults state
+    const [searching, setSearching] = useState(false)
+    const [searchResults, setSearchResults] = useState<any[]>([])
     const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null)
 
     const handleSearch = async (e: React.FormEvent) => {
@@ -32,11 +39,49 @@ export function NewSongForm() {
         setSearching(true)
         setSearchResults([])
         try {
-            const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(searchQuery)}`)
-            if (res.ok) {
-                const data = await res.json()
-                setSearchResults(data)
-            }
+            // Generate all variants to ensure we catch results in any script
+            const queryOriginal = searchQuery
+            const querySimp = converterToSimp(searchQuery)
+            const queryTrad = converterToTrad(searchQuery)
+
+            // Deduplicate queries (e.g. if input is already Simplified, Original == Simp)
+            const uniqueQueries = Array.from(new Set([queryOriginal, querySimp, queryTrad])).filter(q => q && q.trim())
+
+            // Run requests in parallel
+            const requests = uniqueQueries.map(q =>
+                fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`)
+            )
+
+            const responses = await Promise.all(requests)
+            const results = await Promise.all(responses.map(res => res.ok ? res.json() : []))
+
+            // Flatten and Deduplicate by ID
+            const allTracks = results.flat()
+            const uniqueTracks = Array.from(new Map(allTracks.map(item => [item.id, item])).values())
+
+            // Sort results: 1. Exact Match (Any Script) 2. Synced Lyrics
+            uniqueTracks.sort((a, b) => {
+                let scoreA = 0
+                let scoreB = 0
+
+                const nameA = (a.name || '').toLowerCase().trim()
+                const nameB = (b.name || '').toLowerCase().trim()
+
+                // Check exact match against any script variant
+                const isExactA = uniqueQueries.some(q => q.toLowerCase().trim() === nameA)
+                const isExactB = uniqueQueries.some(q => q.toLowerCase().trim() === nameB)
+
+                if (isExactA) scoreA += 10
+                if (isExactB) scoreB += 10
+
+                // Check for synced lyrics
+                if (a.syncedLyrics) scoreA += 5
+                if (b.syncedLyrics) scoreB += 5
+
+                return scoreB - scoreA
+            })
+
+            setSearchResults(uniqueTracks)
         } catch (e) {
             console.error(e)
         } finally {

@@ -68,6 +68,9 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
             if (currentEnglish.length !== hanzi.length) {
                 currentEnglish = Array(hanzi.length).fill('')
             }
+            // Reset UI immediately to show generation state
+            setPinyin([...currentPinyin])
+            setEnglish([...currentEnglish])
 
             // Initial clear for clean generation if we are starting fresh or regenerating
             // But if we want "instant", keeping old data while new overwrites is better?
@@ -101,6 +104,18 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                                 }
                             }
                             englishUpdated = true
+
+                        } else if (msg.type === 'pinyin_chunk') {
+                            const { chunkIndex, data } = msg
+                            console.log('Received pinyin_chunk', chunkIndex, data)
+                            const start = chunkIndex * 10
+                            for (let i = 0; i < data.length; i++) {
+                                if (start + i < currentPinyin.length) {
+                                    currentPinyin[start + i] = data[i]
+                                }
+                            }
+                            pinyinUpdated = true
+                            pinyinUpdated = true
                         } else if (msg.type === 'error') {
                             console.error('Stream error:', msg.message)
                         }
@@ -111,6 +126,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
                 // Update state and save if changed
                 if (pinyinUpdated || englishUpdated) {
+                    console.log('Stream update:', { pinyinUpdated, englishUpdated })
                     setHanzi(hanzi) // Trigger re-render
                     setPinyin([...currentPinyin])
                     setEnglish([...currentEnglish])

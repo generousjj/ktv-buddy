@@ -221,7 +221,8 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                     {/* Pinyin */}
                                     <p className={cn(
                                         "font-mono text-emerald-400 transition-all",
-                                        isActive ? "text-base md:text-lg opacity-100" : "text-xs md:text-sm opacity-70"
+                                        isActive ? "text-base md:text-lg opacity-100" : "text-xs md:text-sm opacity-70",
+                                        isGenerating && "animate-pulse"
                                     )}>
                                         {pinyin[i] || '\u00A0'}
                                     </p>
@@ -238,7 +239,8 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                     <p className={cn(
                                         "text-zinc-400 transition-all font-light",
                                         isActive ? "text-lg md:text-xl" : "text-sm md:text-base",
-                                        isEnglishLoading && "text-emerald-500/50 text-sm animate-pulse italic"
+                                        isEnglishLoading && "text-emerald-500/50 text-sm animate-pulse italic",
+                                        isGenerating && !isEnglishLoading && "animate-pulse"
                                     )}>
                                         {isEnglishLoading ? 'Translating...' : (english[i] || '\u00A0')}
                                     </p>

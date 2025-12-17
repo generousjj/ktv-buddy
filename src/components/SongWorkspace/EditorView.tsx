@@ -85,7 +85,7 @@ export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave, isGen
                                     newPinyin[i] = e.target.value
                                     onChange(hanzi, newPinyin, english)
                                 }}
-                                className="w-full bg-transparent border-none focus:outline-none focus:bg-zinc-900 p-2 md:p-3 text-emerald-400 font-mono text-base md:text-sm"
+                                className={`w-full bg-transparent border-none focus:outline-none focus:bg-zinc-900 p-2 md:p-3 text-emerald-400 font-mono text-base md:text-sm transition-all duration-300 ${isGenerating ? 'animate-pulse opacity-70' : ''}`}
                                 placeholder="Pinyin"
                             />
                         </div>
@@ -99,7 +99,7 @@ export function EditorView({ hanzi, pinyin, english, onChange, onAutoSave, isGen
                                     newEnglish[i] = e.target.value
                                     onChange(hanzi, pinyin, newEnglish)
                                 }}
-                                className={`w-full bg-transparent border-none focus:outline-none focus:bg-zinc-900 p-2 md:p-3 text-base md:text-sm transition-all duration-300 ${(isGenerating && (!english[i] || english[i] === '')) ? 'animate-pulse text-emerald-500/50 blur-[0.5px]' : 'text-zinc-400'}`}
+                                className={`w-full bg-transparent border-none focus:outline-none focus:bg-zinc-900 p-2 md:p-3 text-base md:text-sm transition-all duration-300 ${isGenerating ? 'animate-pulse opacity-70' : 'text-zinc-400'}`}
                                 placeholder={hanzi[i]}
                             />
                         </div>

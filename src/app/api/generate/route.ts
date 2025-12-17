@@ -56,14 +56,26 @@ export async function POST(req: Request) {
         })
 
         const apiKey = process.env.OPENAI_API_KEY
-        const model = 'gpt-4o'
+        const model = 'gpt-5-mini'
         const openai = apiKey ? new OpenAI({ apiKey: apiKey }) : null
 
         const systemPrompt = `
-You are a Chinese song lyrics translator.
-Input: An array of Chinese lyrics lines.
-Task: Generate an English translation for each line.
-Output JSON format: { "english": [string, ...] }
+You are a Chinese song lyrics translator and Pinyin expert.
+Input: JSON object { "hanzi": [lines] }.
+Task:
+1. Generate an English translation for each line.
+2. Generate ACCURATE Pinyin for each line.
+   - Handle polyphonic characters (多音字) based on context.
+   - TRITICAL RULES (You MUST follow these):
+     * "还是" / "還是" -> ALWAYS "hái shì" (never huán shì).
+     * "还" meaning "still/yet" -> "hái". "还" meaning "return/give back" -> "huán".
+     * "了" as particle -> "le". "了" meaning "finish/understand" -> "liǎo".
+     * "都" meaning "all/both" -> "dōu". "都" meaning "capital/city" -> "dū".
+     * "只" meaning "only" -> "zhǐ". "只" as measure word -> "zhī".
+     * "得" meaning "must" -> "děi". "得" as particle -> "de". "得" meaning "get" -> "dé".
+3. Output the FINAL corrected Pinyin for every line.
+
+Output JSON format: You MUST output a valid JSON object: { "english": [string, ...], "pinyin": [string, ...] }
 Arrays must have exactly the same length as input.
 
 English rules:
@@ -112,9 +124,13 @@ English rules:
                 for (const [index, chunk] of chunks.entries()) {
                     console.log(`[Generate] Starting chunk ${index + 1}/${chunks.length} size=${chunk.length}`)
                     let englishChunk: string[] = []
+                    let pinyinChunk: string[] | null = null
                     let attempts = 0
                     let success = false
                     let lastError: any = null
+
+                    const startIdx = index * CHUNK_SIZE
+                    const sourcePinyinChunk = localPinyin.slice(startIdx, startIdx + chunk.length)
 
                     while (attempts < 3 && !success) {
                         attempts++
@@ -124,7 +140,7 @@ English rules:
                                 max_tokens: 4096,
                                 messages: [
                                     { role: 'system', content: systemPrompt },
-                                    { role: 'user', content: JSON.stringify(chunk) }
+                                    { role: 'user', content: `Transliterate and translate these lines. You MUST return JSON with "english" and "pinyin" arrays.\nInput: ${JSON.stringify({ hanzi: chunk })}` }
                                 ],
                                 response_format: { type: 'json_object' },
                             })
@@ -133,6 +149,7 @@ English rules:
                             if (!content) throw new Error('No content received from OpenAI')
 
                             content = cleanJson(content)
+                            console.log(`[Generate] Chunk ${index + 1} Raw Response:`, content)
                             const parsed = JSON.parse(content)
 
                             if (parsed.english?.length !== chunk.length) {
@@ -140,6 +157,17 @@ English rules:
                             }
 
                             englishChunk = parsed.english || Array(chunk.length).fill('')
+                            // If OpenAI returns pinyin, use it
+                            if (parsed.pinyin && Array.isArray(parsed.pinyin)) {
+                                if (parsed.pinyin.length !== chunk.length) {
+                                    console.warn(`[Generate] Pinyin length mismatch: Expected ${chunk.length}, got ${parsed.pinyin.length}`)
+                                }
+                                pinyinChunk = parsed.pinyin
+                            } else {
+                                console.warn(`[Generate] Chunk ${index + 1} Missing pinyin. Keys found:`, Object.keys(parsed))
+                            }
+
+
                             console.log(`[Generate] Chunk ${index + 1} completed successfully on attempt ${attempts}`)
                             success = true
 
@@ -175,6 +203,28 @@ English rules:
 
                     // Send Chunk
                     send({ type: 'english', chunkIndex: index, totalChunks: chunks.length, data: englishChunk })
+                    // Ensure we ALWAYS send a pinyin_chunk, either from AI or fallback to local, with fixes applied.
+                    const finalPinyinChunk = pinyinChunk || sourcePinyinChunk
+
+                    const correctedPinyinChunk = finalPinyinChunk.map((line, i) => {
+                        let fixed = line
+                        const hanziLine = chunk[i] || ''
+
+                        // 1. Context-aware "huán" -> "hái"
+                        if (hanziLine.includes('还') || hanziLine.includes('還')) {
+                            fixed = fixed.replace(/\bhuán\b/gi, 'hái')
+                        }
+
+                        // 2. Force "zhī shèng" -> "zhǐ shèng"
+                        fixed = fixed.replace(/\bzhī\s+shèng\b/gi, 'zhǐ shèng')
+
+                        // 3. Force "zhī yǒu" -> "zhǐ yǒu"
+                        fixed = fixed.replace(/\bzhī\s+yǒu\b/gi, 'zhǐ yǒu')
+
+                        return fixed
+                    })
+
+                    send({ type: 'pinyin_chunk', chunkIndex: index, totalChunks: chunks.length, data: correctedPinyinChunk })
                 }
 
                 controller.close()
