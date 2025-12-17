@@ -25,38 +25,45 @@ export function KaraokeView({ hanzi, pinyin, english }: { hanzi: string[], pinyi
     }, [hanzi.length])
 
     return (
-        <div className="h-full flex flex-col items-center justify-center p-8 bg-black relative">
-            <div className="text-center space-y-8 max-w-4xl w-full">
-
-                <div className="space-y-6">
+        <div className="h-full flex flex-col items-center justify-between p-8 bg-black">
+            <div className="flex-1 flex flex-col items-center justify-center w-full max-w-5xl mx-auto min-h-0">
+                <div className="flex flex-col gap-8 md:gap-12 justify-center text-center w-full py-8 overflow-y-auto custom-scrollbar">
                     {/* Pinyin */}
-                    <p className="text-3xl md:text-4xl text-emerald-400 font-mono opacity-90 transition-all duration-300 min-h-[3rem]">
+                    <p className="text-3xl md:text-5xl text-emerald-400 font-mono opacity-90 transition-all duration-300 leading-relaxed break-words">
                         {pinyin[currentIndex] || '\u00A0'}
                     </p>
 
                     {/* Hanzi */}
-                    <h2 className="text-6xl md:text-8xl font-black text-white tracking-wide transition-all duration-300 min-h-[6rem]">
+                    <h2 className="text-7xl md:text-9xl font-black text-white tracking-wide transition-all duration-300 leading-tight break-words py-2">
                         {hanzi[currentIndex] || ''}
                     </h2>
 
                     {/* English */}
-                    <p className="text-2xl md:text-3xl text-zinc-400 font-light transition-all duration-300 min-h-[2.5rem]">
+                    <p className="text-2xl md:text-4xl text-zinc-400 font-light transition-all duration-300 leading-relaxed break-words">
                         {english[currentIndex] || '\u00A0'}
                     </p>
                 </div>
             </div>
 
             {/* Controls */}
-            <div className="absolute bottom-10 left-0 right-0 flex justify-center items-center gap-8 text-zinc-500">
-                <button onClick={() => setCurrentIndex(i => Math.max(i - 1, 0))} className="p-4 hover:text-white hover:bg-white/10 rounded-full transition-all">
+            <div className="shrink-0 flex justify-center items-center gap-12 text-zinc-500 pt-8 pb-4">
+                <button
+                    onClick={() => setCurrentIndex(i => Math.max(i - 1, 0))}
+                    className="p-4 hover:text-white hover:bg-white/10 rounded-full transition-all cursor-pointer"
+                    disabled={currentIndex === 0}
+                >
                     <ChevronLeft className="w-8 h-8" />
                 </button>
 
-                <div className="text-sm font-mono text-zinc-600">
-                    {currentIndex + 1} / {hanzi.length}
+                <div className="text-lg font-mono text-zinc-600 font-medium select-none">
+                    {currentIndex + 1} <span className="text-zinc-700">/</span> {hanzi.length}
                 </div>
 
-                <button onClick={() => setCurrentIndex(i => Math.min(i + 1, hanzi.length - 1))} className="p-4 hover:text-white hover:bg-white/10 rounded-full transition-all">
+                <button
+                    onClick={() => setCurrentIndex(i => Math.min(i + 1, hanzi.length - 1))}
+                    className="p-4 hover:text-white hover:bg-white/10 rounded-full transition-all cursor-pointer"
+                    disabled={currentIndex === hanzi.length - 1}
+                >
                     <ChevronRight className="w-8 h-8" />
                 </button>
             </div>

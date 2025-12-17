@@ -34,7 +34,7 @@ export async function createSong(data: {
         }
     })
 
-    revalidatePath('/')
+    revalidatePath('/app')
     return { id: song.id }
 }
 

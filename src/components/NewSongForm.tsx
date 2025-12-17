@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { normalizeChineseLyrics } from '@/lib/utils'
 import { SongStore } from '@/lib/store'
+import { useLanguage } from '@/lib/i18n'
 
 export function NewSongForm() {
+    const { t } = useLanguage()
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<'paste' | 'search'>('search')
 
@@ -87,7 +89,7 @@ export function NewSongForm() {
                 lrcJson: track.syncedLyrics || null
             })
 
-            router.push(`/song/${result.id}`)
+            router.push(`/app/song/${result.id}`)
 
         } catch (err: any) {
             setError(err.message)
@@ -142,7 +144,7 @@ export function NewSongForm() {
                 lrcJson: null
             })
 
-            router.push(`/song/${result.id}`)
+            router.push(`/app/song/${result.id}`)
 
         } catch (err: any) {
             setError(err.message)
@@ -156,15 +158,15 @@ export function NewSongForm() {
             <div className="flex border-b border-zinc-800">
                 <button
                     onClick={() => setActiveTab('search')}
-                    className={`px-6 py-3 text-sm font-medium ${activeTab === 'search' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
+                    className={`px-6 py-3 text-sm font-medium cursor-pointer ${activeTab === 'search' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
                 >
-                    Search Song
+                    {t('newSong.tab.search')}
                 </button>
                 <button
                     onClick={() => setActiveTab('paste')}
-                    className={`px-6 py-3 text-sm font-medium ${activeTab === 'paste' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
+                    className={`px-6 py-3 text-sm font-medium cursor-pointer ${activeTab === 'paste' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
                 >
-                    Paste Lyrics
+                    {t('newSong.tab.paste')}
                 </button>
             </div>
 
@@ -173,34 +175,34 @@ export function NewSongForm() {
                     <form onSubmit={handlePasteSubmit} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-medium text-zinc-400 mb-1">Title (Optional)</label>
+                                <label className="block text-xs font-medium text-zinc-400 mb-1">{t('newSong.title')}</label>
                                 <input
                                     type="text"
                                     value={title}
                                     onChange={e => setTitle(e.target.value)}
                                     className="w-full bg-zinc-800 border-zinc-700 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                    placeholder="Song Title"
+                                    placeholder={t('newSong.placeholder.title')}
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-zinc-400 mb-1">Artist (Optional)</label>
+                                <label className="block text-xs font-medium text-zinc-400 mb-1">{t('newSong.artist')}</label>
                                 <input
                                     type="text"
                                     value={artist}
                                     onChange={e => setArtist(e.target.value)}
                                     className="w-full bg-zinc-800 border-zinc-700 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                    placeholder="Artist Name"
+                                    placeholder={t('newSong.placeholder.artist')}
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-medium text-zinc-400 mb-1">Lyrics (Chinese)</label>
+                            <label className="block text-xs font-medium text-zinc-400 mb-1">{t('newSong.lyrics')}</label>
                             <textarea
                                 value={lyrics}
                                 onChange={e => setLyrics(e.target.value)}
                                 className="w-full h-64 bg-zinc-800 border-zinc-700 rounded-md px-3 py-2 text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                placeholder="Paste Chinese lyrics here..."
+                                placeholder={t('newSong.placeholder.lyrics')}
                             />
                         </div>
 
@@ -213,10 +215,10 @@ export function NewSongForm() {
                         <button
                             type="submit"
                             disabled={loading || !lyrics}
-                            className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+                            className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
                         >
                             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {loading ? `Processing... ${progress}%` : 'Generate & Save'}
+                            {loading ? `${t('newSong.processing')} ${progress}%` : t('newSong.submit')}
                         </button>
                     </form>
                 )}
@@ -228,15 +230,15 @@ export function NewSongForm() {
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search Title or Artist..."
+                                placeholder={t('newSong.placeholder.search')}
                                 className="flex-1 bg-zinc-800 border-zinc-700 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                             />
                             <button
                                 type="submit"
                                 disabled={searching || !searchQuery}
-                                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white px-4 py-2 rounded-md font-medium"
+                                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white px-4 py-2 rounded-md font-medium cursor-pointer"
                             >
-                                {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
+                                {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : t('newSong.searchBtn')}
                             </button>
                         </form>
 
@@ -245,26 +247,33 @@ export function NewSongForm() {
                                 <div key={track.id} className="bg-zinc-800/50 p-4 rounded-lg flex items-center justify-between hover:bg-zinc-800 transition-colors">
                                     <div className="overflow-hidden">
                                         <h3 className="font-bold text-white truncate">{track.name}</h3>
-                                        <p className="text-sm text-zinc-400 truncate">{track.artistName} • {track.albumName}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-sm text-zinc-400 truncate">{track.artistName} • {track.albumName}</p>
+                                            {track.syncedLyrics && (
+                                                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/30">
+                                                    {t('newSong.synced')}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                     <button
                                         onClick={() => handleSelectSong(track)}
                                         disabled={loading}
-                                        className="ml-4 bg-zinc-700 hover:bg-zinc-600 text-white text-xs px-3 py-1.5 rounded-md"
+                                        className="ml-4 bg-zinc-700 hover:bg-zinc-600 text-white text-xs px-3 py-1.5 rounded-md cursor-pointer"
                                     >
-                                        Select
+                                        {t('newSong.select')}
                                     </button>
                                 </div>
                             ))}
                             {searchResults.length === 0 && !searching && searchQuery && (
-                                <div className="text-center text-zinc-500 text-sm">No results found.</div>
+                                <div className="text-center text-zinc-500 text-sm">{t('newSong.noResults')}</div>
                             )}
                         </div>
 
                         {loading && (
                             <div className="flex items-center justify-center gap-2 text-emerald-400 text-sm">
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                Processing selection... {progress}%
+                                {t('newSong.processing')} {progress}%
                             </div>
                         )}
                         {error && (

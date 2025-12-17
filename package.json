@@ -14,8 +14,11 @@
     "lucide-react": "^0.561.0",
     "next": "16.0.10",
     "openai": "^6.14.0",
+    "opencc-js": "^1.0.5",
+    "pinyin-match": "^1.2.10",
     "react": "19.2.1",
     "react-dom": "19.2.1",
+    "react-player": "^3.4.0",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.2.1"
   },

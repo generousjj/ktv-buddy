@@ -4,19 +4,21 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Library, PlusCircle, Settings, Music } from 'lucide-react'
 import { clsx } from 'clsx'
-
-const navItems = [
-    { href: '/', label: 'Library', icon: Library },
-    { href: '/new', label: 'New Song', icon: PlusCircle },
-]
+import { useLanguage } from '@/lib/i18n'
 
 export function Sidebar() {
     const pathname = usePathname()
+    const { t } = useLanguage()
+
+    const navItems = [
+        { href: '/app', label: t('nav.library'), icon: Library },
+        { href: '/app/new', label: t('nav.newSong'), icon: PlusCircle },
+    ]
 
     // Simple active check: strictly equal or starts with for sub-routes?
     // For now simple checks.
     const isActive = (href: string) => {
-        if (href === '/') return pathname === '/'
+        if (href === '/app') return pathname === '/app'
         return pathname.startsWith(href)
     }
 
@@ -24,10 +26,10 @@ export function Sidebar() {
         <>
             {/* Desktop Sidebar */}
             <aside className="hidden md:flex w-64 bg-zinc-900 border-r border-zinc-800 text-zinc-100 flex-col h-screen fixed left-0 top-0 z-50">
-                <div className="p-6 flex items-center gap-2 border-b border-zinc-800">
+                <Link href="/" className="p-6 flex items-center gap-2 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors">
                     <Music className="w-6 h-6 text-emerald-400" />
-                    <h1 className="font-bold text-lg tracking-tight">KTV Buddy</h1>
-                </div>
+                    <h1 className="font-bold text-lg tracking-tight">{t('app.title')}</h1>
+                </Link>
                 <nav className="flex-1 p-4 space-y-1">
                     {navItems.map((item) => {
                         const active = isActive(item.href)
@@ -50,7 +52,7 @@ export function Sidebar() {
                     })}
                 </nav>
                 <div className="p-4 border-t border-zinc-800 text-xs text-zinc-500">
-                    KTV Buddy v0.1
+                    {t('app.title')} v0.1
                 </div>
             </aside>
 
