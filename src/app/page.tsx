@@ -31,12 +31,12 @@ export default function LandingPage() {
       <section className="relative flex-1 flex flex-col items-center justify-center text-center px-6 py-20 overflow-hidden">
         {/* Background Effects */}
         <div className="absolute inset-0 z-0">
+          <Image src="/ktv-buddy.png" alt="KTV Buddy mascot" width={40} height={40} className="absolute top-4 left-4 object-contain" />
           <Image
             src="/hero-bg.png"
             alt="Background"
             fill
             className="object-cover opacity-30 select-none pointer-events-none"
-            priority
           />
           <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/80 via-zinc-950/80 to-zinc-950" />
         </div>
