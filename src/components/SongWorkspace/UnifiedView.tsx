@@ -108,10 +108,14 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
     // Sync Logic: Update Active Index based on Time
     useEffect(() => {
         if (hasSync && playing) {
+            // Add a small offset to make the sync feel snappier (anticipate the line slightly)
+            const SYNC_OFFSET = 0.15
+            const checkTime = currentTime + SYNC_OFFSET
+
             const index = syncedLines.findIndex((line, i) => {
                 const nextLine = syncedLines[i + 1]
-                if (!nextLine) return currentTime >= line.time
-                return currentTime >= line.time && currentTime < nextLine.time
+                if (!nextLine) return checkTime >= line.time
+                return checkTime >= line.time && checkTime < nextLine.time
             })
             if (index !== -1 && index !== activeIndex) {
                 setActiveIndex(index)
@@ -146,7 +150,7 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
             interval = setInterval(() => {
                 const now = Date.now()
                 setCurrentTime((now - start) / 1000)
-            }, 100)
+            }, 30) // Faster polling (30ms) for smoother updates
         }
         return () => clearInterval(interval)
     }, [playing, audioUrl, currentTime])
