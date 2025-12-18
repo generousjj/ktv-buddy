@@ -440,9 +440,11 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                             onToggleMode={setSpotifyMode}
                         />
                         <LanguageSwitcher />
-                        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 bg-zinc-900 p-2 rounded-lg disabled:opacity-50 cursor-pointer">
-                            <Save className="w-4 h-4" />
-                        </button>
+                        {activeTab === 'editor' && (
+                            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 bg-zinc-900 p-2 rounded-lg disabled:opacity-50 cursor-pointer">
+                                <Save className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -463,10 +465,12 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                         onToggleMode={setSpotifyMode}
                     />
                     <LanguageSwitcher />
-                    <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 disabled:opacity-50 cursor-pointer">
-                        <Save className="w-4 h-4" />
-                        {saving ? t('song.saving') : t('song.save')}
-                    </button>
+                    {activeTab === 'editor' && (
+                        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 disabled:opacity-50 cursor-pointer">
+                            <Save className="w-4 h-4" />
+                            {saving ? t('song.saving') : t('song.save')}
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -483,7 +487,9 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                     onSpotifyControl={isSpotifyMode ? controlPlayback : undefined}
                     externalDuration={isSpotifyMode && spotifyState.track ? spotifyState.track.duration_ms / 1000 : undefined}
                     onSearchSpotify={isSpotifyMode ? searchSpotify : undefined}
-                    onPlayTrack={isSpotifyMode ? playTrack : undefined} />}
+                    onPlayTrack={isSpotifyMode ? playTrack : undefined}
+                    onSave={handleSave}
+                    isTemp={initialData.isTemp} />}
                 {activeTab === 'karaoke' && <KaraokeView hanzi={hanzi} pinyin={pinyin} english={english} />}
                 {activeTab === 'export' && (
                     <div className="p-8 h-full flex flex-col items-center justify-center overflow-hidden">

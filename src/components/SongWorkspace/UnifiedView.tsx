@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { clsx } from 'clsx'
 import { cn } from '@/lib/utils'
-import { Play, Pause, Save, RotateCcw, SkipBack, SkipForward, Search, Music } from 'lucide-react'
+import { Play, Pause, Save, RotateCcw, SkipBack, SkipForward, Search, Music, Bookmark } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n'
 
 const ReactPlayer = dynamic(() => import('react-player'), { ssr: false })
@@ -52,9 +52,11 @@ interface UnifiedViewProps {
     externalDuration?: number
     onSearchSpotify?: (query: string) => Promise<any[]>
     onPlayTrack?: (uri: string) => Promise<{ success: boolean; error?: string }>
+    onSave?: () => void
+    isTemp?: boolean
 }
 
-export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudioUrlSave, isGenerating, externalTime, isExternalPlaying, onSpotifyControl, externalDuration, onSearchSpotify, onPlayTrack }: UnifiedViewProps) {
+export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudioUrlSave, isGenerating, externalTime, isExternalPlaying, onSpotifyControl, externalDuration, onSearchSpotify, onPlayTrack, onSave, isTemp }: UnifiedViewProps) {
     const { t } = useLanguage()
     const [activeIndex, setActiveIndex] = useState(0)
     const itemRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -592,6 +594,17 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                     />
                                 </div>
                             </div>
+
+                            {/* Bookmark / Save to Library */}
+                            {onSave && isTemp && (
+                                <button
+                                    onClick={onSave}
+                                    className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800 transition-all cursor-pointer"
+                                    title="Save to My Songs"
+                                >
+                                    <Bookmark className="w-4 h-4" />
+                                </button>
+                            )}
 
                             {/* Search Toggle (Spotify Only) */}
                             {onSearchSpotify && (
