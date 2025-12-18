@@ -596,13 +596,18 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                             </div>
 
                             {/* Bookmark / Save to Library */}
-                            {onSave && isTemp && (
+                            {onSave && (
                                 <button
-                                    onClick={onSave}
-                                    className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800 transition-all cursor-pointer"
-                                    title="Save to My Songs"
+                                    onClick={isTemp ? onSave : undefined}
+                                    className={cn(
+                                        "w-8 h-8 flex items-center justify-center rounded-full transition-all",
+                                        isTemp
+                                            ? "text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800 cursor-pointer"
+                                            : "text-emerald-400 cursor-default"
+                                    )}
+                                    title={isTemp ? "Save to My Songs" : "Saved to My Songs"}
                                 >
-                                    <Bookmark className="w-4 h-4" />
+                                    <Bookmark className={cn("w-4 h-4", !isTemp && "fill-current")} />
                                 </button>
                             )}
 

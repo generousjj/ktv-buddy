@@ -49,25 +49,25 @@ export function Sidebar() {
     const handlePlayTrack = async (track: any) => {
         setSpotifyError(null)
 
-        // 1. Determine Target Song
+        // 1. Determine Target Song - Match by Spotify Track ID first
         const allSongs = SongStore.getAll()
-        const matchItem = findBestMatch(track.name, allSongs.map(s => ({ id: s.id, title: s.title })))
-        let targetId = matchItem?.id
+        const spotifyTrackId = track.id
+        let existingSong = allSongs.find(s => s.spotifyTrackId === spotifyTrackId)
+        let targetId = existingSong?.id
         let shouldAutoGenerate = true
 
-        if (targetId) {
-            const existing = allSongs.find(s => s.id === targetId)
-            if (existing) {
-                if (existing.isTemp) {
-                    // Promote to permanent if found via Search
-                    SongStore.save({ ...existing, isTemp: undefined })
-                }
-                if (existing.hanzi && existing.hanzi.length > 0) {
-                    shouldAutoGenerate = false
-                }
+        if (existingSong) {
+            // Found by Spotify ID
+            if (existingSong.isTemp) {
+                // Promote to permanent if found via Search
+                SongStore.save({ ...existingSong, isTemp: undefined })
             }
+            if (existingSong.hanzi && existingSong.hanzi.length > 0) {
+                shouldAutoGenerate = false
+            }
+            targetId = existingSong.id
         } else {
-            // Create NEW PERMANENT song (Searched songs are explicitly requested, so we save them)
+            // Create NEW PERMANENT song with Spotify Track ID
             const newSongId = crypto.randomUUID()
             const newSong = {
                 id: newSongId,
@@ -77,7 +77,8 @@ export function Sidebar() {
                 createdAt: new Date().toISOString(),
                 versionId: '1',
                 lrcJson: null,
-                audioUrl: null
+                audioUrl: null,
+                spotifyTrackId: spotifyTrackId
                 // isTemp is intentionally undefined (permanent)
             }
             SongStore.save(newSong)
@@ -126,33 +127,42 @@ export function Sidebar() {
             return
         }
 
+        const spotifyTrackId = spotifyState.track.id
         const spotifyTitle = spotifyState.track.name.trim()
         const spotifyArtist = spotifyState.track.artist
         const allSongs = SongStore.getAll()
 
-        console.log(`[Spotify Global] Detecting: "${spotifyTitle}" by "${spotifyArtist}"`)
+        console.log(`[Spotify Global] Detecting: "${spotifyTitle}" by "${spotifyArtist}" (ID: ${spotifyTrackId})`)
 
-        // PRIORITY CHECK: If we are already on a song page, check if IT matches first
-        // This prevents redirecting to a duplicate song entry, UNLESS the current one is empty and a better one exists
+        // PRIMARY CHECK: Match by Spotify Track ID (most reliable)
+        const existingBySpotifyId = allSongs.find(s => s.spotifyTrackId === spotifyTrackId)
+        if (existingBySpotifyId) {
+            // Check if we're already on this song's page
+            const currentId = pathname.split('/').pop()?.split('?')[0]
+            if (currentId === existingBySpotifyId.id) {
+                // Already on the right page
+                console.log('[Spotify Global] Already on correct song page (matched by Spotify ID)')
+                return
+            }
+            // Redirect to the matched song
+            console.log('[Spotify Global] Found song by Spotify ID, redirecting:', existingBySpotifyId.title)
+            router.push(`/app/song/${existingBySpotifyId.id}`)
+            return
+        }
+
+        // SECONDARY CHECK: If on a song page, stay if current song's Spotify ID matches
         if (pathname.startsWith('/app/song/')) {
             const currentId = pathname.split('/').pop()?.split('?')[0]
             if (currentId) {
                 const currentSong = allSongs.find(s => s.id === currentId)
-                if (currentSong) {
-                    const directMatch = findBestMatch(spotifyTitle, [{ id: currentSong.id, title: currentSong.title }])
-                    if (directMatch) {
-                        // Only stay if current song has lyrics OR if we haven't found a better one yet (we haven't searched yet)
-                        // Actually, let's search first then compare.
-                        // But to simple fix: if current song has synced lyrics, DEFINITELY stay.
-                        if (currentSong.lrcJson) {
-                            return
-                        }
-                        return
-                    }
+                if (currentSong?.spotifyTrackId === spotifyTrackId) {
+                    console.log('[Spotify Global] Current song Spotify ID matches')
+                    return
                 }
             }
         }
 
+        // No match found - create new song with Spotify Track ID
         console.log('[Spotify Global] No match found. Auto-creating new song:', spotifyTitle)
         const newSongId = crypto.randomUUID()
         const newSong = {
@@ -164,7 +174,8 @@ export function Sidebar() {
             versionId: '1',
             lrcJson: null,
             audioUrl: null,
-            isTemp: true
+            isTemp: true,
+            spotifyTrackId: spotifyTrackId
         }
         SongStore.save(newSong)
         router.push(`/app/song/${newSongId}?autoGenerate=true`)
