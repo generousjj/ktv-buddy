@@ -55,7 +55,6 @@ export function Sidebar() {
         const spotifyTrackId = track.id
         let existingSong = allSongs.find(s => s.spotifyTrackId === spotifyTrackId)
         let targetId = existingSong?.id
-        let shouldAutoGenerate = true
 
         if (existingSong) {
             // Found by Spotify ID
@@ -63,9 +62,7 @@ export function Sidebar() {
                 // Promote to permanent if found via Search
                 SongStore.save({ ...existingSong, isTemp: undefined })
             }
-            if (existingSong.hanzi && existingSong.hanzi.length > 0) {
-                shouldAutoGenerate = false
-            }
+            // Always regenerate for Spotify songs to ensure fresh lrcJson
             targetId = existingSong.id
         } else {
             // Create NEW PERMANENT song with Spotify Track ID
@@ -86,11 +83,11 @@ export function Sidebar() {
             targetId = newSongId
         }
 
-        // 2. Redirect Immediately
+        // 2. Redirect Immediately (always autoGenerate for Spotify)
         setSpotifyResults([])
         setSpotifyQuery('')
         setSpotifySearching(false)
-        router.push(`/app/song/${targetId}${shouldAutoGenerate ? '?autoGenerate=true' : ''}`)
+        router.push(`/app/song/${targetId}?autoGenerate=true`)
 
         // 3. Play Track & Enable Mode
         const result = await playTrack(track.uri)
@@ -146,9 +143,9 @@ export function Sidebar() {
                 console.log('[Spotify Global] Already on correct song page (matched by Spotify ID)')
                 return
             }
-            // Redirect to the matched song
+            // Redirect to the matched song (always regenerate to ensure fresh lrcJson)
             console.log('[Spotify Global] Found song by Spotify ID, redirecting:', existingBySpotifyId.title)
-            router.push(`/app/song/${existingBySpotifyId.id}`)
+            router.push(`/app/song/${existingBySpotifyId.id}?autoGenerate=true`)
             return
         }
 
@@ -377,18 +374,22 @@ export function Sidebar() {
                 })}
 
                 {/* Spotify Search Button (Mobile) */}
-                {spotifyState.isConnected && (
-                    <button
-                        onClick={() => setShowMobileSpotifySearch(true)}
-                        className={clsx(
-                            'flex flex-col items-center justify-center p-2 rounded-md transition-colors',
-                            isSpotifyMode ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'
-                        )}
-                    >
-                        <Music className="w-6 h-6" />
-                        <span className="text-[10px] mt-1 font-medium">Spotify</span>
-                    </button>
-                )}
+                <button
+                    onClick={() => {
+                        if (spotifyState.isConnected) {
+                            setShowMobileSpotifySearch(true)
+                        } else {
+                            login()
+                        }
+                    }}
+                    className={clsx(
+                        'flex flex-col items-center justify-center p-2 rounded-md transition-colors',
+                        isSpotifyMode ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'
+                    )}
+                >
+                    <Music className="w-6 h-6" />
+                    <span className="text-[10px] mt-1 font-medium">Spotify</span>
+                </button>
             </nav>
         </>
     )
