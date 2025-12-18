@@ -74,6 +74,49 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
     const [searchResults, setSearchResults] = useState<any[]>([])
     const [showSearch, setShowSearch] = useState(false)
 
+    // Wake Lock - prevent screen from dimming while playing
+    const wakeLockRef = useRef<WakeLockSentinel | null>(null)
+
+    useEffect(() => {
+        const requestWakeLock = async () => {
+            if ('wakeLock' in navigator && playing) {
+                try {
+                    wakeLockRef.current = await navigator.wakeLock.request('screen')
+                    console.log('[WakeLock] Screen wake lock acquired')
+                } catch (err) {
+                    console.log('[WakeLock] Failed to acquire:', err)
+                }
+            }
+        }
+
+        const releaseWakeLock = async () => {
+            if (wakeLockRef.current) {
+                await wakeLockRef.current.release()
+                wakeLockRef.current = null
+                console.log('[WakeLock] Screen wake lock released')
+            }
+        }
+
+        if (playing) {
+            requestWakeLock()
+        } else {
+            releaseWakeLock()
+        }
+
+        // Re-acquire on visibility change (when user returns to tab)
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && playing) {
+                requestWakeLock()
+            }
+        }
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+
+        return () => {
+            releaseWakeLock()
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
+        }
+    }, [playing])
+
     // Sync external time
     useEffect(() => {
         if (typeof externalTime === 'number') {
