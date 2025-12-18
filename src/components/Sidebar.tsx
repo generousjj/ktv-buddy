@@ -119,7 +119,8 @@ export function Sidebar() {
     }, [pathname]) // setSpotifyMode is stable from context
 
     useEffect(() => {
-        if (!isSpotifyMode || !spotifyState.isConnected || !spotifyState.track || !spotifyState.isPlaying) return
+        // Navigate to song when Spotify mode is on and there's an active track (playing OR paused)
+        if (!isSpotifyMode || !spotifyState.isConnected || !spotifyState.track) return
 
         // Don't redirect back if user just intentionally left a song page
         if (justLeftSongPageRef.current) {
