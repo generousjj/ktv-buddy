@@ -22,6 +22,7 @@ export function Sidebar() {
     const [spotifyResults, setSpotifyResults] = useState<any[]>([])
     const [spotifySearching, setSpotifySearching] = useState(false)
     const [spotifyError, setSpotifyError] = useState<string | null>(null)
+    const [showMobileSpotifySearch, setShowMobileSpotifySearch] = useState(false)
 
     const navItems = [
         { href: '/app', label: t('nav.library'), icon: Library },
@@ -282,6 +283,77 @@ export function Sidebar() {
                 </div>
             </aside>
 
+            {/* Mobile Spotify Search Modal */}
+            {showMobileSpotifySearch && spotifyState.isConnected && (
+                <div className="md:hidden fixed inset-0 bg-black/80 z-[60] flex items-end">
+                    <div className="w-full bg-zinc-900 rounded-t-2xl p-4 pb-safe max-h-[70vh] overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-white font-bold">Search Spotify</h3>
+                            <button
+                                onClick={() => {
+                                    setShowMobileSpotifySearch(false)
+                                    setSpotifyResults([])
+                                    setSpotifyQuery('')
+                                }}
+                                className="text-zinc-400 hover:text-white p-2"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="flex gap-2 mb-4">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                                <input
+                                    type="text"
+                                    value={spotifyQuery}
+                                    onChange={(e) => setSpotifyQuery(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSpotifySearch()}
+                                    placeholder="Search songs..."
+                                    className="w-full pl-10 pr-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    autoFocus
+                                />
+                            </div>
+                            <button
+                                onClick={handleSpotifySearch}
+                                disabled={spotifySearching}
+                                className="px-4 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50"
+                            >
+                                {spotifySearching ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Go'}
+                            </button>
+                        </div>
+
+                        {spotifyError && (
+                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 flex items-start gap-2">
+                                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                <span>{spotifyError}</span>
+                            </div>
+                        )}
+
+                        <div className="flex-1 overflow-y-auto space-y-2">
+                            {spotifyResults.map((track: any) => (
+                                <button
+                                    key={track.id}
+                                    onClick={() => {
+                                        handlePlayTrack(track)
+                                        setShowMobileSpotifySearch(false)
+                                    }}
+                                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-700 transition-colors text-left"
+                                >
+                                    {track.album?.images?.[2]?.url && (
+                                        <img src={track.album.images[2].url} alt="" className="w-12 h-12 rounded-lg" />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white font-medium truncate">{track.name}</p>
+                                        <p className="text-sm text-zinc-500 truncate">{track.artists?.[0]?.name}</p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Mobile Bottom Nav */}
             <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-zinc-900 border-t border-zinc-800 z-50 flex items-center justify-around px-2 pb-safe">
                 {navItems.map((item) => {
@@ -292,7 +364,7 @@ export function Sidebar() {
                             key={item.href}
                             href={item.href}
                             className={clsx(
-                                'flex flex-col items-center justify-center p-2 rounded-md transition-colors w-full',
+                                'flex flex-col items-center justify-center p-2 rounded-md transition-colors',
                                 active
                                     ? 'text-emerald-400'
                                     : 'text-zinc-500 hover:text-zinc-300'
@@ -303,6 +375,20 @@ export function Sidebar() {
                         </Link>
                     )
                 })}
+
+                {/* Spotify Search Button (Mobile) */}
+                {spotifyState.isConnected && (
+                    <button
+                        onClick={() => setShowMobileSpotifySearch(true)}
+                        className={clsx(
+                            'flex flex-col items-center justify-center p-2 rounded-md transition-colors',
+                            isSpotifyMode ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'
+                        )}
+                    >
+                        <Music className="w-6 h-6" />
+                        <span className="text-[10px] mt-1 font-medium">Spotify</span>
+                    </button>
+                )}
             </nav>
         </>
     )
