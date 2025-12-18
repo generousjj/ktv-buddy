@@ -43,32 +43,83 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
         lastUpdated: 0
     })
 
-    // Init token
+    // Init token with expiration check
     useEffect(() => {
         const stored = typeof window !== 'undefined' ? localStorage.getItem('spotify_access_token') : null
+        const expiration = typeof window !== 'undefined' ? localStorage.getItem('spotify_token_expiration') : null
+
         if (stored) {
+            // Check if token has expired (Spotify tokens last 1 hour = 3600000ms)
+            if (expiration) {
+                const expirationTime = parseInt(expiration, 10)
+                if (Date.now() > expirationTime) {
+                    console.log('[Spotify] Token expired, clearing...')
+                    localStorage.removeItem('spotify_access_token')
+                    localStorage.removeItem('spotify_token_expiration')
+                    return // Don't set token
+                }
+            }
+
             setToken(stored)
             setSpotifyState(prev => ({ ...prev, isConnected: true }))
+
+            // Validate token is actually still valid with API
+            validateToken(stored)
         } else {
-            // Check hash
+            // Check hash for new token from OAuth callback
             const extracted = extractTokenFromUrl()
             if (extracted) {
                 setToken(extracted)
                 localStorage.setItem('spotify_access_token', extracted)
+                // Set expiration to 55 minutes from now (conservative to avoid edge cases)
+                const expiresAt = Date.now() + (55 * 60 * 1000)
+                localStorage.setItem('spotify_token_expiration', expiresAt.toString())
                 window.history.replaceState(null, '', window.location.pathname) // Clean URL
                 setSpotifyState(prev => ({ ...prev, isConnected: true }))
             }
         }
     }, [])
 
+    // Validate token is still valid by making a test API call
+    const validateToken = async (tokenToValidate: string) => {
+        try {
+            const res = await fetch('https://api.spotify.com/v1/me', {
+                headers: { Authorization: `Bearer ${tokenToValidate}` }
+            })
+
+            if (res.status === 401) {
+                console.log('[Spotify] Token validation failed - expired or revoked')
+                // Clear token directly (don't call logout to avoid hoisting issues)
+                setToken(null)
+                localStorage.removeItem('spotify_access_token')
+                localStorage.removeItem('spotify_token_expiration')
+                setSpotifyMode(false)
+                setSpotifyState({
+                    isConnected: false,
+                    isPlaying: false,
+                    track: null,
+                    progress_ms: 0,
+                    lastUpdated: 0
+                })
+                return false
+            }
+
+            return res.ok
+        } catch (e) {
+            console.error('[Spotify] Token validation error:', e)
+            return false
+        }
+    }
+
     const login = async () => {
         const url = await getAuthUrl()
         window.location.href = url
     }
 
-    const logout = () => {
+    const logout = useCallback(() => {
         setToken(null)
         localStorage.removeItem('spotify_access_token')
+        localStorage.removeItem('spotify_token_expiration')
         setSpotifyMode(false)
         setSpotifyState({
             isConnected: false,
@@ -77,7 +128,7 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
             progress_ms: 0,
             lastUpdated: 0
         })
-    }
+    }, [])
 
     const fetchState = useCallback(async () => {
         if (!token) return
@@ -176,13 +227,21 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
             const res = await fetch(`https://api.spotify.com/v1/search?${params}`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
+
+            // Handle expired token
+            if (res.status === 401) {
+                console.log('[Spotify] Search failed - token expired')
+                logout()
+                return []
+            }
+
             const data = await res.json()
             return data.tracks?.items || []
         } catch (e) {
             console.error('Search Error', e)
             return []
         }
-    }, [token])
+    }, [token, logout])
 
     const playTrack = useCallback(async (uri: string): Promise<{ success: boolean; error?: string }> => {
         if (!token) return { success: false, error: 'Not connected to Spotify' }
@@ -192,6 +251,13 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
                 headers: { Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ uris: [uri] })
             })
+
+            // Handle expired token
+            if (res.status === 401) {
+                console.log('[Spotify] Play failed - token expired')
+                logout()
+                return { success: false, error: 'Session expired. Please reconnect to Spotify.' }
+            }
 
             if (res.status === 404) {
                 return { success: false, error: 'No active Spotify player found. Please open Spotify on your device first.' }
@@ -209,7 +275,7 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
             console.error('Play Track Error', e)
             return { success: false, error: 'Failed to connect to Spotify' }
         }
-    }, [token, fetchState])
+    }, [token, fetchState, logout])
 
     const value = useMemo(() => ({
         spotifyState,

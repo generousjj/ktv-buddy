@@ -414,31 +414,31 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
     return (
         <div className="h-full flex flex-col bg-zinc-950 text-white">
-            {/* Header */}
-            <header className="flex flex-col md:flex-row items-stretch md:items-center justify-between px-4 md:px-6 py-4 border-b border-zinc-900 bg-zinc-950 shrink-0 gap-4">
-                <div className="flex items-center justify-between md:justify-start gap-4 flex-nowrap min-w-0">
-                    <div className="flex items-center gap-4 min-w-0">
+            {/* Header - Simplified on mobile to avoid double header */}
+            <header className="flex flex-col md:flex-row items-stretch md:items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-zinc-900 bg-zinc-950 shrink-0 gap-2 md:gap-4">
+                <div className="flex items-center justify-between md:justify-start gap-3 md:gap-4 flex-nowrap min-w-0">
+                    <div className="flex items-center gap-3 md:gap-4 min-w-0">
                         <Link href="/app" className="text-zinc-400 hover:text-white transition-colors shrink-0">
                             <ArrowLeft className="w-5 h-5" />
                         </Link>
 
-                        {/* Album Art (Spotify Mode) */}
+                        {/* Album Art (Spotify Mode) - smaller on mobile */}
                         {isSpotifyMode && spotifyState.track?.albumArt && (
                             <img
                                 src={spotifyState.track.albumArt}
                                 alt="Album Art"
-                                className="w-12 h-12 rounded-lg shadow-lg shrink-0"
+                                className="w-10 h-10 md:w-12 md:h-12 rounded-lg shadow-lg shrink-0"
                             />
                         )}
 
                         <div className="min-w-0">
-                            <h1 className="font-bold text-lg leading-tight truncate">{initialData.title || t('newSong.placeholder.title')}</h1>
+                            <h1 className="font-bold text-base md:text-lg leading-tight truncate">{initialData.title || t('newSong.placeholder.title')}</h1>
                             <p className="text-xs text-zinc-500 truncate">{initialData.artist || t('newSong.placeholder.artist')}</p>
                         </div>
                     </div>
 
-                    {/* Mobile Save Button (Top Right) */}
-                    <div className="md:hidden shrink-0 flex items-center gap-2">
+                    {/* Mobile Controls - Spotify + Language + Save inline */}
+                    <div className="md:hidden shrink-0 flex items-center gap-1">
                         <SpotifyControl
                             spotifyState={spotifyState}
                             onLogin={login}

@@ -108,7 +108,7 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
     // This handles the case where Spotify is already playing mid-song when lyrics finish generating
     useEffect(() => {
         if (hanzi.length > 0 && hasSync && currentTime > 0) {
-            const SYNC_OFFSET = 1.0
+            const SYNC_OFFSET = 0.5
             const checkTime = currentTime + SYNC_OFFSET
 
             const index = syncedLines.findIndex((line, i) => {
@@ -124,6 +124,8 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
     }, [hanzi.length, hasSync]) // Only run when lyrics become available
 
     // Auto-Scroll Active Item (within container to preserve header)
+    // On mobile: position at 10% from top for better visibility of upcoming lyrics
+    // On desktop: center the item
     useEffect(() => {
         if (activeIndex >= 0 && itemRefs.current[activeIndex] && scrollContainerRef.current) {
             const container = scrollContainerRef.current
@@ -132,10 +134,15 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                 const containerRect = container.getBoundingClientRect()
                 const itemRect = item.getBoundingClientRect()
 
-                // Calculate scroll position to center the item in the container
-                const itemCenter = itemRect.top + itemRect.height / 2
-                const containerCenter = containerRect.top + containerRect.height / 2
-                const scrollOffset = itemCenter - containerCenter
+                // Check if mobile viewport (< 768px)
+                const isMobile = window.innerWidth < 768
+
+                // On mobile: position at 10% from top; on desktop: 40% from top
+                const targetPosition = isMobile
+                    ? containerRect.top + containerRect.height * 0.1
+                    : containerRect.top + containerRect.height * 0.4
+
+                const scrollOffset = itemRect.top - targetPosition
 
                 container.scrollBy({
                     top: scrollOffset,
@@ -169,7 +176,7 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
             const timeSinceManualSeek = Date.now() - manualSeekLockRef.current
             if (timeSinceManualSeek < 1500) return
 
-            const SYNC_OFFSET = 1.0 // Adjusted for Spotify delay
+            const SYNC_OFFSET = 0.5 // Adjusted for Spotify delay
             const checkTime = currentTime + SYNC_OFFSET
 
             const index = syncedLines.findIndex((line, i) => {
@@ -223,11 +230,17 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
         if (!onSpotifyControl) return
 
         if (currentTime > 3) {
-            // Restart current song
+            // Restart current song - lock sync and reset to first lyric
+            manualSeekLockRef.current = Date.now()
             onSpotifyControl('seek', 0)
             setCurrentTime(0)
             setActiveIndex(0)
             startTimeRef.current = Date.now()
+
+            // Also scroll to top of lyrics container
+            if (scrollContainerRef.current) {
+                scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' })
+            }
         } else {
             // Go to previous track
             onSpotifyControl('previous')

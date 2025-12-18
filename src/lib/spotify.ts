@@ -5,7 +5,8 @@ const getRedirectUri = () => {
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            return `http://127.0.0.1:${window.location.port || '3001'}/callback`
+            // Use the SAME hostname to avoid localStorage mismatch
+            return `http://${hostname}:${window.location.port || '3001'}/callback`
         }
         // Production - use the actual domain
         return `https://${hostname}/callback`
@@ -13,7 +14,7 @@ const getRedirectUri = () => {
     // Server-side fallback
     return process.env.NODE_ENV === 'production'
         ? 'https://ktvbuddy.com/callback'
-        : 'http://127.0.0.1:3001/callback'
+        : 'http://localhost:3001/callback'
 }
 
 export const SPOTIFY_REDIRECT_URI = getRedirectUri()

@@ -197,7 +197,7 @@ export function Sidebar() {
                 </nav>
 
                 {/* Spotify Search Section */}
-                {spotifyState.isConnected && (
+                {spotifyState.isConnected ? (
                     <div className="px-4 py-3 border-t border-zinc-800">
                         <p className="text-xs text-zinc-500 mb-2 uppercase tracking-wider font-medium">Play on Spotify</p>
                         <div className="flex gap-1">
@@ -249,6 +249,18 @@ export function Sidebar() {
                                 ))}
                             </div>
                         )}
+                    </div>
+                ) : (
+                    <div className="px-4 py-3 border-t border-zinc-800">
+                        <p className="text-xs text-zinc-500 mb-2 uppercase tracking-wider font-medium">Spotify</p>
+                        <button
+                            onClick={login}
+                            className="w-full flex items-center justify-center gap-2 bg-[#1DB954] hover:bg-[#1ed760] text-white text-xs font-medium py-2 px-3 rounded transition-colors cursor-pointer"
+                        >
+                            <Music className="w-3 h-3" />
+                            Connect to Spotify
+                        </button>
+                        <p className="text-[10px] text-zinc-600 mt-2 text-center">Connect to search and play songs</p>
                     </div>
                 )}
 
