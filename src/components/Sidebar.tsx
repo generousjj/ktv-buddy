@@ -53,8 +53,20 @@ export function Sidebar() {
         const allSongs = SongStore.getAll()
         const matchItem = findBestMatch(track.name, allSongs.map(s => ({ id: s.id, title: s.title })))
         let targetId = matchItem?.id
+        let shouldAutoGenerate = true
 
-        if (!targetId) {
+        if (targetId) {
+            const existing = allSongs.find(s => s.id === targetId)
+            if (existing) {
+                if (existing.isTemp) {
+                    // Promote to permanent if found via Search
+                    SongStore.save({ ...existing, isTemp: undefined })
+                }
+                if (existing.hanzi && existing.hanzi.length > 0) {
+                    shouldAutoGenerate = false
+                }
+            }
+        } else {
             // Create NEW PERMANENT song (Searched songs are explicitly requested, so we save them)
             const newSongId = crypto.randomUUID()
             const newSong = {
@@ -76,7 +88,7 @@ export function Sidebar() {
         setSpotifyResults([])
         setSpotifyQuery('')
         setSpotifySearching(false)
-        router.push(`/app/song/${targetId}?autoGenerate=true`)
+        router.push(`/app/song/${targetId}${shouldAutoGenerate ? '?autoGenerate=true' : ''}`)
 
         // 3. Play Track & Enable Mode
         const result = await playTrack(track.uri)
