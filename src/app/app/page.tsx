@@ -27,7 +27,7 @@ export default function LibraryPage() {
 
   useEffect(() => {
     // Load songs on mount
-    setSongs(SongStore.getAll())
+    setSongs(SongStore.getAll().filter(s => !s.isTemp))
     setLoading(false)
   }, [])
 

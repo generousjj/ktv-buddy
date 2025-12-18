@@ -25,6 +25,7 @@ export type SongData = {
     english: string[]
     lrcJson: string | null
     audioUrl?: string | null
+    isTemp?: boolean
 }
 
 const cleanData = (h: string[], p: string[], e: string[]) => {
@@ -368,7 +369,8 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 pinyin: p,
                 english: e,
                 lrcJson: lrcJson,
-                audioUrl
+                audioUrl,
+                isTemp: initialData.isTemp
             })
         } catch (err) {
             console.error(err)

@@ -123,7 +123,8 @@ export function Sidebar() {
             createdAt: new Date().toISOString(),
             versionId: '1',
             lrcJson: null,
-            audioUrl: null
+            audioUrl: null,
+            isTemp: true
         }
         SongStore.save(newSong)
         router.push(`/app/song/${newSongId}?autoGenerate=true`)
