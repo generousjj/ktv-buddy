@@ -46,7 +46,7 @@ export default function LandingPage() {
             fill
             className="object-cover opacity-30 select-none pointer-events-none"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/40 via-zinc-950/60 to-zinc-950 md:from-zinc-950/80 md:via-zinc-950/80" />
+          <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/40 via-zinc-950/60 to-zinc-950" />
         </div>
 
         <div className="relative z-10 max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
