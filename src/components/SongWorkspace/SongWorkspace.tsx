@@ -204,6 +204,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
             // New: If we fetch lyrics, we need to update our local reference to 'hanzi'
             let currentHanzi = [...hanzi]
+            let currentLrcJson = lrcJson // Track lrcJson locally to prevent overwrites by closure stale state
 
             while (true) {
                 const { done, value } = await reader.read()
@@ -267,6 +268,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                         } else if (msg.type === 'lrc_update') {
                             // NEW: API found synced lyrics (LRC)
                             const newLrc = msg.data
+                            currentLrcJson = newLrc
                             setLrcJson(newLrc)
 
                             // Immediately persist LRC to storage (avoid closure issues)
@@ -280,7 +282,8 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                                 pinyin: currentPinyin,
                                 english: currentEnglish,
                                 lrcJson: newLrc,
-                                audioUrl
+                                audioUrl,
+                                spotifyTrackId: initialData.spotifyTrackId
                             })
                             console.log('[Generate] Saved LRC sync data')
                         } else if (msg.type === 'error') {
@@ -301,12 +304,12 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                     setEnglish([...currentEnglish])
 
                     // We save incrementally so if they leave, they have partial progress
-                    handleBulkUpdate(currentHanzi, currentPinyin, currentEnglish)
+                    handleBulkUpdate(currentHanzi, currentPinyin, currentEnglish, currentLrcJson)
                 }
             }
 
             // Final save
-            handleBulkUpdate(currentHanzi, currentPinyin, currentEnglish)
+            handleBulkUpdate(currentHanzi, currentPinyin, currentEnglish, currentLrcJson)
 
         } catch (e) {
             console.error("Generation error:", e)
@@ -339,11 +342,12 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
         }
     }
 
-    const handleBulkUpdate = (h: string[], p: string[], e: string[]) => {
+    const handleBulkUpdate = (h: string[], p: string[], e: string[], lrcJsonOverride?: string | null) => {
         // Update local state
         setHanzi(h)
         setPinyin(p)
         setEnglish(e)
+        if (lrcJsonOverride !== undefined) setLrcJson(lrcJsonOverride)
 
         // Auto-save
         setSaving(true)
@@ -357,7 +361,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 hanzi: h,
                 pinyin: p,
                 english: e,
-                lrcJson: lrcJson,
+                lrcJson: lrcJsonOverride !== undefined ? lrcJsonOverride : lrcJson,
                 audioUrl,
                 isTemp: initialData.isTemp,
                 spotifyTrackId: initialData.spotifyTrackId
