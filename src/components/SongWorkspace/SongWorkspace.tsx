@@ -26,6 +26,7 @@ export type SongData = {
     lrcJson: string | null
     audioUrl?: string | null
     isTemp?: boolean
+    spotifyTrackId?: string
 }
 
 const cleanData = (h: string[], p: string[], e: string[]) => {
@@ -328,7 +329,8 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 pinyin,
                 english,
                 lrcJson: lrcJson,
-                audioUrl
+                audioUrl,
+                spotifyTrackId: initialData.spotifyTrackId
             })
         } catch (e) {
             console.error(e)
@@ -357,7 +359,8 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 english: e,
                 lrcJson: lrcJson,
                 audioUrl,
-                isTemp: initialData.isTemp
+                isTemp: initialData.isTemp,
+                spotifyTrackId: initialData.spotifyTrackId
             })
         } catch (err) {
             console.error(err)
