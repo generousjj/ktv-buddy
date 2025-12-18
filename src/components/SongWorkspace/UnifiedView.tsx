@@ -97,8 +97,16 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
     }, [lrcJson])
     const hasSync = syncedLines.length > 0
 
-    // Calculate effective duration
-    const effectiveDuration = externalDuration || duration || (hasSync && syncedLines.length > 0 ? syncedLines[syncedLines.length - 1].time + 10 : 0) || 0
+    // Calculate effective duration - prioritize external duration, then LRC timing, then use currentTime as minimum
+    // This prevents progress bar from appearing stuck when duration isn't available yet
+    const effectiveDuration = useMemo(() => {
+        if (externalDuration && externalDuration > 0) return externalDuration
+        if (duration && duration > 0) return duration
+        if (hasSync && syncedLines.length > 0) return syncedLines[syncedLines.length - 1].time + 10
+        // Fallback: use currentTime + buffer so bar shows progress even without duration
+        // This makes the bar grow as the song progresses, rather than appearing stuck
+        return Math.max(currentTime + 30, 180) // At least current position + 30 seconds, min 3 minutes
+    }, [externalDuration, duration, hasSync, syncedLines, currentTime])
 
     useEffect(() => {
         setPlayerMounted(true)
@@ -304,7 +312,7 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                     <span>{new Date((effectiveDuration || currentTime) * 1000).toISOString().substr(14, 5)}</span>
                                 </div>
                                 <div className="relative h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                                    <div className="absolute left-0 top-0 bottom-0 bg-emerald-500 transition-all duration-100 ease-linear rounded-full" style={{ width: `${Math.min(100, (currentTime / (effectiveDuration || 240)) * 100)}%` }} />
+                                    <div className="absolute left-0 top-0 bottom-0 bg-emerald-500 transition-all duration-100 ease-linear rounded-full" style={{ width: `${Math.min(100, (currentTime / effectiveDuration) * 100)}%` }} />
                                 </div>
                             </div>
                         </div>
@@ -393,14 +401,14 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                     onClick={(e) => {
                                         const rect = e.currentTarget.getBoundingClientRect()
                                         const percent = (e.clientX - rect.left) / rect.width
-                                        const newTime = percent * (effectiveDuration || 240)
+                                        const newTime = percent * effectiveDuration
                                         setCurrentTime(newTime)
                                         onSpotifyControl('seek', Math.floor(newTime * 1000))
                                     }}
                                 >
                                     <div
                                         className="absolute left-0 top-0 bottom-0 bg-emerald-500 transition-all duration-100 ease-linear rounded-full"
-                                        style={{ width: `${Math.min(100, (currentTime / (effectiveDuration || 240)) * 100)}%` }}
+                                        style={{ width: `${Math.min(100, (currentTime / effectiveDuration) * 100)}%` }}
                                     />
                                 </div>
                             </div>
@@ -589,7 +597,7 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                     onClick={(e) => {
                                         const rect = e.currentTarget.getBoundingClientRect()
                                         const percent = (e.clientX - rect.left) / rect.width
-                                        const newTime = percent * (effectiveDuration || 240)
+                                        const newTime = percent * effectiveDuration
 
                                         setCurrentTime(newTime)
                                         startTimeRef.current = Date.now() - newTime * 1000
@@ -603,7 +611,7 @@ export function UnifiedView({ hanzi, pinyin, english, lrcJson, audioUrl, onAudio
                                 >
                                     <div
                                         className="absolute left-0 top-0 bottom-0 bg-emerald-500 transition-all duration-100 ease-linear rounded-full"
-                                        style={{ width: `${Math.min(100, (currentTime / (effectiveDuration || 240)) * 100)}%` }}
+                                        style={{ width: `${Math.min(100, (currentTime / effectiveDuration) * 100)}%` }}
                                     />
                                 </div>
                             </div>
