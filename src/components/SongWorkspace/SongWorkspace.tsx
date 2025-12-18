@@ -414,8 +414,8 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
     return (
         <div className="h-full flex flex-col bg-zinc-950 text-white">
-            {/* Header - Simplified on mobile to avoid double header */}
-            <header className="flex flex-col md:flex-row items-stretch md:items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-zinc-900 bg-zinc-950 shrink-0 gap-2 md:gap-4">
+            {/* Header - Fixed on top, doesn't scroll */}
+            <header className="sticky top-0 z-40 flex flex-col md:flex-row items-stretch md:items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-zinc-900 bg-zinc-950 shrink-0 gap-2 md:gap-4">
                 <div className="flex items-center justify-between md:justify-start gap-3 md:gap-4 flex-nowrap min-w-0">
                     <div className="flex items-center gap-3 md:gap-4 min-w-0">
                         <Link href="/app" className="text-zinc-400 hover:text-white transition-colors shrink-0">
