@@ -66,44 +66,31 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
     const [spotifyCurrentTime, setSpotifyCurrentTime] = useState(0)
 
     // Handle Song Matching & Time Sync
+    // 2. Sync Time (Smooth)
     useEffect(() => {
-        if (!isSpotifyMode || !spotifyState.isConnected || !spotifyState.track) return
+        let rafId: number
 
-        // 1. Match Song
-        // Check if current song matches spotify track
-        const currentTitle = initialData.title?.toLowerCase().trim() || ''
-        const spotifyTitle = spotifyState.track.name.toLowerCase().trim()
-
-        // Flexible Match: Exact, or one contains the other (if length > 2 to avoid "I" matching "Icon")
-        const isMatch = currentTitle === spotifyTitle ||
-            (currentTitle.length > 2 && spotifyTitle.includes(currentTitle)) ||
-            (spotifyTitle.length > 2 && currentTitle.includes(spotifyTitle)) ||
-            // Special case for Tong Hua / Fairy Tale mappings could go here, but for now we rely on titles
-            (initialData.hanzi.length > 0 && spotifyState.track.name.includes('Tong Hua'))
-
-        if (!isMatch) {
-            console.log(`[Spotify] Track mismatch: App=${currentTitle}, Spotify=${spotifyTitle}`)
-            // Do NOT redirect here IF we are already in the "Song Workspace" of a different song.
-            // But wait, the user SAID: "when you're in spotify mode, it auto detects the song you're playing and real time brings you to the unified view for it" -> THIS IMPLIES REDIRECT.
-
-            // Try to find the correct song
-            const allSongs = SongStore.getAll()
-            const match = allSongs.find(s => s.title?.toLowerCase().trim() === spotifyTitle || spotifyTitle.includes(s.title?.toLowerCase().trim() || '__________'))
-
-            if (match && match.id !== initialData.id) {
-                console.log('[Spotify] Found match! Redirecting to:', match.title)
-                router.push(`/app/song/${match.id}`)
-                return
+        const update = () => {
+            if (isSpotifyMode && spotifyState.isPlaying && spotifyState.track) {
+                const elapsed = (Date.now() - spotifyState.lastUpdated) / 1000
+                const current = (spotifyState.progress_ms / 1000) + elapsed
+                setSpotifyCurrentTime(current)
+                rafId = requestAnimationFrame(update)
             }
         }
 
-        // 2. Sync Time
-        if (spotifyState.isPlaying) {
-            const elapsedSinceUpdate = (Date.now() - spotifyState.lastUpdated) / 1000
-            const estimatedTime = (spotifyState.progress_ms / 1000) + elapsedSinceUpdate
-            setSpotifyCurrentTime(estimatedTime)
+        if (isSpotifyMode && spotifyState.isPlaying) {
+            update()
+        } else if (isSpotifyMode && spotifyState.track) {
+            // Paused: just set once
+            const elapsed = (Date.now() - spotifyState.lastUpdated) / 1000
+            setSpotifyCurrentTime((spotifyState.progress_ms / 1000) + elapsed)
         }
-    }, [spotifyState, isSpotifyMode, initialData, router])
+
+        return () => {
+            if (rafId) cancelAnimationFrame(rafId)
+        }
+    }, [isSpotifyMode, spotifyState])
 
     // Save cleaned data if needed
     useEffect(() => {
@@ -453,11 +440,9 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                             onToggleMode={setSpotifyMode}
                         />
                         <LanguageSwitcher />
-                        {activeTab === 'editor' && (
-                            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 bg-zinc-900 p-2 rounded-lg disabled:opacity-50 cursor-pointer">
-                                <Save className="w-4 h-4" />
-                            </button>
-                        )}
+                        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 bg-zinc-900 p-2 rounded-lg disabled:opacity-50 cursor-pointer">
+                            <Save className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
 
@@ -478,12 +463,10 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                         onToggleMode={setSpotifyMode}
                     />
                     <LanguageSwitcher />
-                    {activeTab === 'editor' && (
-                        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 disabled:opacity-50 cursor-pointer">
-                            <Save className="w-4 h-4" />
-                            {saving ? t('song.saving') : t('song.save')}
-                        </button>
-                    )}
+                    <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 disabled:opacity-50 cursor-pointer">
+                        <Save className="w-4 h-4" />
+                        {saving ? t('song.saving') : t('song.save')}
+                    </button>
                 </div>
             </header>
 

@@ -48,13 +48,41 @@ export function Sidebar() {
 
     const handlePlayTrack = async (track: any) => {
         setSpotifyError(null)
+
+        // 1. Determine Target Song
+        const allSongs = SongStore.getAll()
+        const matchItem = findBestMatch(track.name, allSongs.map(s => ({ id: s.id, title: s.title })))
+        let targetId = matchItem?.id
+
+        if (!targetId) {
+            // Create NEW PERMANENT song (Searched songs are explicitly requested, so we save them)
+            const newSongId = crypto.randomUUID()
+            const newSong = {
+                id: newSongId,
+                title: track.name,
+                artist: track.artists?.[0]?.name || 'Unknown Artist',
+                hanzi: [], pinyin: [], english: [],
+                createdAt: new Date().toISOString(),
+                versionId: '1',
+                lrcJson: null,
+                audioUrl: null
+                // isTemp is intentionally undefined (permanent)
+            }
+            SongStore.save(newSong)
+            targetId = newSongId
+        }
+
+        // 2. Redirect Immediately
+        setSpotifyResults([])
+        setSpotifyQuery('')
+        setSpotifySearching(false)
+        router.push(`/app/song/${targetId}?autoGenerate=true`)
+
+        // 3. Play Track & Enable Mode
         const result = await playTrack(track.uri)
         if (!result.success) {
             setSpotifyError(result.error || 'Failed to play')
         } else {
-            setSpotifyResults([])
-            setSpotifyQuery('')
-            // Auto-enable Spotify mode when playing
             if (!isSpotifyMode) setSpotifyMode(true)
         }
     }
