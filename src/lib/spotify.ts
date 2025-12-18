@@ -1,5 +1,22 @@
 export const SPOTIFY_CLIENT_ID = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID || '875075bf34744076b7e4a1007ab0d832'
-export const SPOTIFY_REDIRECT_URI = 'http://127.0.0.1:3001/callback'
+
+// Dynamic redirect URI based on environment
+const getRedirectUri = () => {
+    if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            return `http://127.0.0.1:${window.location.port || '3001'}/callback`
+        }
+        // Production - use the actual domain
+        return `https://${hostname}/callback`
+    }
+    // Server-side fallback
+    return process.env.NODE_ENV === 'production'
+        ? 'https://ktvbuddy.com/callback'
+        : 'http://127.0.0.1:3001/callback'
+}
+
+export const SPOTIFY_REDIRECT_URI = getRedirectUri()
 
 export const SCOPES = [
     'user-read-playback-state',
