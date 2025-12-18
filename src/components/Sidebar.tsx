@@ -133,29 +133,15 @@ export function Sidebar() {
 
         console.log(`[Spotify Global] Detecting: "${spotifyTitle}" by "${spotifyArtist}" (ID: ${spotifyTrackId})`)
 
-        // PRIMARY CHECK: Match by Spotify Track ID (most reliable)
-        const existingBySpotifyId = allSongs.find(s => s.spotifyTrackId === spotifyTrackId)
-        if (existingBySpotifyId) {
-            // Check if we're already on this song's page
-            const currentId = pathname.split('/').pop()?.split('?')[0]
-            if (currentId === existingBySpotifyId.id) {
-                // Already on the right page
-                console.log('[Spotify Global] Already on correct song page (matched by Spotify ID)')
-                return
-            }
-            // Redirect to the matched song (always regenerate to ensure fresh lrcJson)
-            console.log('[Spotify Global] Found song by Spotify ID, redirecting:', existingBySpotifyId.title)
-            router.push(`/app/song/${existingBySpotifyId.id}?autoGenerate=true`)
-            return
-        }
-
-        // SECONDARY CHECK: If on a song page, stay if current song's Spotify ID matches
+        // CHECK: If on a song page, stay if current song's Spotify ID matches
+        // We DO NOT look for other existing songs - strictly create new temp sessions for Spotify mode
+        // unless we are already actively viewing the correct song.
         if (pathname.startsWith('/app/song/')) {
             const currentId = pathname.split('/').pop()?.split('?')[0]
             if (currentId) {
                 const currentSong = allSongs.find(s => s.id === currentId)
                 if (currentSong?.spotifyTrackId === spotifyTrackId) {
-                    console.log('[Spotify Global] Current song Spotify ID matches')
+                    console.log('[Spotify Global] Current song Spotify ID matches - staying put')
                     return
                 }
             }
