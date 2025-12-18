@@ -1,13 +1,21 @@
 'use client'
-
+import { useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowRight, Music, Mic, Wand2, Smartphone } from 'lucide-react'
+import { ArrowRight, Music, Mic, Wand2, Smartphone, Headphones } from 'lucide-react'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useLanguage } from '@/lib/i18n'
+import { useSpotify } from '@/hooks/useSpotify'
 
 export default function LandingPage() {
   const { t, locale } = useLanguage()
+  const { setSpotifyMode } = useSpotify()
+
+  // Ensure Spotify mode is OFF when landing on the home page
+  useEffect(() => {
+    setSpotifyMode(false)
+  }, [setSpotifyMode])
+
   return (
     <div className="flex flex-col min-h-screen bg-zinc-950 text-white selection:bg-emerald-500/30">
       {/* Navigation */}
@@ -100,7 +108,7 @@ export default function LandingPage() {
       {/* Features Grid */}
       <section id="features" className="py-24 px-6 relative bg-zinc-900/50">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
               {
                 icon: Mic,
@@ -111,6 +119,11 @@ export default function LandingPage() {
                 icon: Wand2,
                 title: t('landing.features.sync.title'),
                 description: t('landing.features.sync.desc')
+              },
+              {
+                icon: Headphones,
+                title: t('landing.features.spotify.title'),
+                description: t('landing.features.spotify.desc')
               },
               {
                 icon: Smartphone,

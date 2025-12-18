@@ -19,7 +19,6 @@ export default function SongPage() {
             if (found) {
                 setSong(found)
             } else {
-                // Not found handling
                 router.push('/')
             }
         }
@@ -36,7 +35,8 @@ export default function SongPage() {
 
     return (
         <div className="h-[calc(100dvh-4rem)] md:h-[100dvh] w-full overflow-hidden">
-            <SongWorkspace initialData={song} />
+            {/* Only use song ID as key - SongWorkspace manages its own state */}
+            <SongWorkspace key={song.id} initialData={song} />
         </div>
     )
 }

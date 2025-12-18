@@ -10,6 +10,9 @@ import { UnifiedView } from './UnifiedView'
 import { SongStore } from '@/lib/store'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useLanguage } from '@/lib/i18n'
+import { useSpotify } from '@/hooks/useSpotify'
+import { SpotifyControl } from '@/components/SpotifyControl'
+import { useRouter } from 'next/navigation'
 
 export type SongData = {
     id: string
@@ -45,6 +48,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
     const [hanzi, setHanzi] = useState(initHanzi)
     const [pinyin, setPinyin] = useState(initPinyin)
     const [english, setEnglish] = useState(initEnglish)
+    const [lrcJson, setLrcJson] = useState<string | null>(initialData.lrcJson || null)
     const [audioUrl, setAudioUrl] = useState(initialData.audioUrl || '')
     const [saving, setSaving] = useState(false)
     const [isGenerating, setIsGenerating] = useState(false)
@@ -54,6 +58,51 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
         pinyin: true,
         english: true
     })
+
+    // Spotify Integration
+    const router = useRouter()
+    const { spotifyState, login, logout, isSpotifyMode, setSpotifyMode, controlPlayback, searchSpotify, playTrack } = useSpotify()
+    const [spotifyCurrentTime, setSpotifyCurrentTime] = useState(0)
+
+    // Handle Song Matching & Time Sync
+    useEffect(() => {
+        if (!isSpotifyMode || !spotifyState.isConnected || !spotifyState.track) return
+
+        // 1. Match Song
+        // Check if current song matches spotify track
+        const currentTitle = initialData.title?.toLowerCase().trim() || ''
+        const spotifyTitle = spotifyState.track.name.toLowerCase().trim()
+
+        // Flexible Match: Exact, or one contains the other (if length > 2 to avoid "I" matching "Icon")
+        const isMatch = currentTitle === spotifyTitle ||
+            (currentTitle.length > 2 && spotifyTitle.includes(currentTitle)) ||
+            (spotifyTitle.length > 2 && currentTitle.includes(spotifyTitle)) ||
+            // Special case for Tong Hua / Fairy Tale mappings could go here, but for now we rely on titles
+            (initialData.hanzi.length > 0 && spotifyState.track.name.includes('Tong Hua'))
+
+        if (!isMatch) {
+            console.log(`[Spotify] Track mismatch: App=${currentTitle}, Spotify=${spotifyTitle}`)
+            // Do NOT redirect here IF we are already in the "Song Workspace" of a different song.
+            // But wait, the user SAID: "when you're in spotify mode, it auto detects the song you're playing and real time brings you to the unified view for it" -> THIS IMPLIES REDIRECT.
+
+            // Try to find the correct song
+            const allSongs = SongStore.getAll()
+            const match = allSongs.find(s => s.title?.toLowerCase().trim() === spotifyTitle || spotifyTitle.includes(s.title?.toLowerCase().trim() || '__________'))
+
+            if (match && match.id !== initialData.id) {
+                console.log('[Spotify] Found match! Redirecting to:', match.title)
+                router.push(`/app/song/${match.id}`)
+                return
+            }
+        }
+
+        // 2. Sync Time
+        if (spotifyState.isPlaying) {
+            const elapsedSinceUpdate = (Date.now() - spotifyState.lastUpdated) / 1000
+            const estimatedTime = (spotifyState.progress_ms / 1000) + elapsedSinceUpdate
+            setSpotifyCurrentTime(estimatedTime)
+        }
+    }, [spotifyState, isSpotifyMode, initialData, router])
 
     // Save cleaned data if needed
     useEffect(() => {
@@ -68,13 +117,33 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
         }
     }, [])
 
-    // Auto-generate if only Hanzi exists (e.g. newly created)
+    // Auto-generate if only Hanzi exists (e.g. newly created) or autoGenerate param is present
+    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+    const shouldAutoGenerate = searchParams?.get('autoGenerate') === 'true'
+
+    // Track if we've already attempted auto-generation for this session/song
+    const autoGenRef = useState(false)
+
     useEffect(() => {
-        // Use current state lengths (which are cleaned)
-        if (hanzi.length > 0 && (pinyin.length === 0 || pinyin.length !== hanzi.length)) {
+        // Condition 1: Hanzi exists but Pinyin/English doesn't (Partial data)
+        const partialData = hanzi.length > 0 && (pinyin.length === 0 || pinyin.length !== hanzi.length)
+
+        // Condition 2: Explicit auto-generate flag
+        const explicitTrigger = shouldAutoGenerate && !isGenerating
+
+        // Condition 3: Empty song but valid metadata (Auto-created "zombie" song)
+        // We only trigger this ONCE per session to prevent infinite loop if generation fails/returns empty.
+        const zombieTrigger = hanzi.length === 0 && initialData.title && initialData.artist && !autoGenRef[0] && !isGenerating
+
+        if (partialData || explicitTrigger || zombieTrigger) {
+            console.log('[SongWorkspace] Auto-triggering generation.', { partialData, explicitTrigger, zombieTrigger })
+
+            if (zombieTrigger) autoGenRef[1](true) // Set generated flag
+
+            // Remove the param to avoid re-triggering on refresh? Maybe not needed for now.
             handleGenerate()
         }
-    }, [])
+    }, [shouldAutoGenerate, hanzi.length, pinyin.length])
 
     const handleGenerate = async () => {
         if (isGenerating) return
@@ -82,26 +151,46 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
         try {
             // fast-lib generation for immediate feedback
+            // fast-lib generation for immediate feedback
+            // Ensure we have a working copy aligned with Hanzi
             let currentPinyin = [...pinyin]
-            // If empty pinyin, generate client-side immediately
-            if (currentPinyin.length === 0 || currentPinyin.length !== hanzi.length) {
-                const fastPinyin = hanzi.map(line => pinyinPro(line, {
-                    toneType: 'symbol',
-                    nonZh: 'consecutive',
-                    v: true
-                }))
+            let currentEnglish = [...english]
+
+            // If mismatch or empty, generate client-side immediately
+            if (currentPinyin.length !== hanzi.length || currentPinyin.some(p => !p)) {
+                console.log('[Generate] Filling missing pinyin client-side...')
+                const fastPinyin = hanzi.map((line, i) => {
+                    // Use existing if valid, otherwise generate
+                    if (currentPinyin[i] && currentPinyin[i] !== '') return currentPinyin[i]
+                    return pinyinPro(line, {
+                        toneType: 'symbol',
+                        nonZh: 'consecutive',
+                        v: true
+                    })
+                })
                 currentPinyin = fastPinyin
                 setPinyin([...currentPinyin])
-
-                // Initialize English with placeholders if empty to align arrays
-                if (english.length !== hanzi.length) {
-                    setEnglish(hanzi.map(() => ''))
-                }
             }
+
+            // Initialize English with placeholders if empty to align arrays
+            if (currentEnglish.length !== hanzi.length) {
+                const newEnglish = hanzi.map((_, i) => currentEnglish[i] || '')
+                currentEnglish = newEnglish
+                setEnglish([...currentEnglish])
+            }
+
+            // Trigger immediate save of this "Draft" state so UI updates
+            // (Optional, but good for perceived speed)
 
             const res = await fetch('/api/generate', {
                 method: 'POST',
-                body: JSON.stringify({ hanziLines: hanzi, options: { toneNumbers: false } }),
+                // ...
+                body: JSON.stringify({
+                    hanziLines: hanzi,
+                    title: initialData.title,
+                    artist: initialData.artist,
+                    options: { toneNumbers: false }
+                }),
                 headers: { 'Content-Type': 'application/json' }
             })
 
@@ -114,10 +203,18 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
             // Sync local reference again in case state update hasn't propagated to this closure's pinyin
             // (Actually currentPinyin is local variable so it's fine, but just to be safe)
 
-            let currentEnglish = [...english]
             if (currentEnglish.length !== hanzi.length) {
-                currentEnglish = Array(hanzi.length).fill('')
+                // Resize if needed (fill with empty strings)
+                const newArr = Array(hanzi.length).fill('')
+                currentEnglish.forEach((val, i) => {
+                    if (i < newArr.length) newArr[i] = val
+                })
+                currentEnglish = newArr
+                setEnglish([...currentEnglish])
             }
+
+            // New: If we fetch lyrics, we need to update our local reference to 'hanzi'
+            let currentHanzi = [...hanzi]
 
             while (true) {
                 const { done, value } = await reader.read()
@@ -129,12 +226,33 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
                 let pinyinUpdated = false
                 let englishUpdated = false
+                let hanziUpdated = false
 
                 for (const line of lines) {
                     if (!line.trim()) continue
                     try {
                         const msg = JSON.parse(line)
-                        if (msg.type === 'pinyin') {
+                        if (msg.type === 'lyrics_update') {
+                            // API found lyrics for us!
+                            currentHanzi = msg.data
+                            hanziUpdated = true
+
+                            // IMMEDIATELY generate local pinyin so user sees something fast
+                            currentPinyin = currentHanzi.map((line: string) => {
+                                try {
+                                    return pinyinPro(line, { toneType: 'symbol', nonZh: 'consecutive', v: true })
+                                } catch {
+                                    return ''
+                                }
+                            })
+                            currentEnglish = Array(currentHanzi.length).fill('') // English will come from API
+
+                            // Update UI immediately with local pinyin
+                            setHanzi([...currentHanzi])
+                            setPinyin([...currentPinyin])
+                            setEnglish([...currentEnglish])
+
+                        } else if (msg.type === 'pinyin') {
                             // Legacy whole-array update (should trigger rarely now with chunks)
                             currentPinyin = msg.data
                             pinyinUpdated = true
@@ -157,6 +275,25 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                                 }
                             }
                             pinyinUpdated = true
+                        } else if (msg.type === 'lrc_update') {
+                            // NEW: API found synced lyrics (LRC)
+                            const newLrc = msg.data
+                            setLrcJson(newLrc)
+
+                            // Immediately persist LRC to storage (avoid closure issues)
+                            SongStore.save({
+                                id: initialData.id,
+                                title: initialData.title || undefined,
+                                artist: initialData.artist || undefined,
+                                createdAt: initialData.createdAt,
+                                versionId: initialData.versionId,
+                                hanzi: currentHanzi,
+                                pinyin: currentPinyin,
+                                english: currentEnglish,
+                                lrcJson: newLrc,
+                                audioUrl
+                            })
+                            console.log('[Generate] Saved LRC sync data')
                         } else if (msg.type === 'error') {
                             console.error('Stream error:', msg.message)
                         }
@@ -166,18 +303,21 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 }
 
                 // Update state and save if changed
-                if (pinyinUpdated || englishUpdated) {
-                    setHanzi(hanzi) // Trigger re-render
+                if (pinyinUpdated || englishUpdated || hanziUpdated) {
+                    if (!hanziUpdated) {
+                        // If only pinyin/english changed, we just sync
+                    }
+                    setHanzi([...currentHanzi]) // Trigger re-render
                     setPinyin([...currentPinyin])
                     setEnglish([...currentEnglish])
 
                     // We save incrementally so if they leave, they have partial progress
-                    handleBulkUpdate(hanzi, currentPinyin, currentEnglish)
+                    handleBulkUpdate(currentHanzi, currentPinyin, currentEnglish)
                 }
             }
 
             // Final save
-            handleBulkUpdate(hanzi, currentPinyin, currentEnglish)
+            handleBulkUpdate(currentHanzi, currentPinyin, currentEnglish)
 
         } catch (e) {
             console.error("Generation error:", e)
@@ -199,7 +339,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 hanzi,
                 pinyin,
                 english,
-                lrcJson: initialData.lrcJson,
+                lrcJson: lrcJson,
                 audioUrl
             })
         } catch (e) {
@@ -227,7 +367,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 hanzi: h,
                 pinyin: p,
                 english: e,
-                lrcJson: initialData.lrcJson,
+                lrcJson: lrcJson,
                 audioUrl
             })
         } catch (err) {
@@ -285,6 +425,16 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                         <Link href="/app" className="text-zinc-400 hover:text-white transition-colors shrink-0">
                             <ArrowLeft className="w-5 h-5" />
                         </Link>
+
+                        {/* Album Art (Spotify Mode) */}
+                        {isSpotifyMode && spotifyState.track?.albumArt && (
+                            <img
+                                src={spotifyState.track.albumArt}
+                                alt="Album Art"
+                                className="w-12 h-12 rounded-lg shadow-lg shrink-0"
+                            />
+                        )}
+
                         <div className="min-w-0">
                             <h1 className="font-bold text-lg leading-tight truncate">{initialData.title || t('newSong.placeholder.title')}</h1>
                             <p className="text-xs text-zinc-500 truncate">{initialData.artist || t('newSong.placeholder.artist')}</p>
@@ -293,6 +443,13 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
                     {/* Mobile Save Button (Top Right) */}
                     <div className="md:hidden shrink-0 flex items-center gap-2">
+                        <SpotifyControl
+                            spotifyState={spotifyState}
+                            onLogin={login}
+                            onLogout={logout}
+                            isSpotifyMode={isSpotifyMode}
+                            onToggleMode={setSpotifyMode}
+                        />
                         <LanguageSwitcher />
                         {activeTab === 'editor' && (
                             <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 bg-zinc-900 p-2 rounded-lg disabled:opacity-50 cursor-pointer">
@@ -311,6 +468,13 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
                 {/* Desktop Save Button */}
                 <div className="hidden md:flex w-[200px] justify-end shrink-0 items-center gap-3">
+                    <SpotifyControl
+                        spotifyState={spotifyState}
+                        onLogin={login}
+                        onLogout={logout}
+                        isSpotifyMode={isSpotifyMode}
+                        onToggleMode={setSpotifyMode}
+                    />
                     <LanguageSwitcher />
                     {activeTab === 'editor' && (
                         <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 disabled:opacity-50 cursor-pointer">
@@ -323,7 +487,18 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
             <div className="flex-1 overflow-hidden relative">
                 {activeTab === 'editor' && <EditorView hanzi={hanzi} pinyin={pinyin} english={english} onChange={(h: string[], p: string[], e: string[]) => { setHanzi(h); setPinyin(p); setEnglish(e); }} onAutoSave={handleBulkUpdate} isGenerating={isGenerating} onRegenerate={handleGenerate} />}
-                {activeTab === 'unified' && <UnifiedView hanzi={hanzi} pinyin={pinyin} english={english} lrcJson={initialData.lrcJson} audioUrl={audioUrl} onAudioUrlSave={(url) => { setAudioUrl(url); handleSave(); }} isGenerating={isGenerating} />}
+                {activeTab === 'unified' && <UnifiedView hanzi={hanzi} pinyin={pinyin} english={english} lrcJson={lrcJson} audioUrl={audioUrl} onAudioUrlSave={(url) => {
+                    if (url === '_RETRY_') {
+                        handleGenerate()
+                    } else {
+                        setAudioUrl(url);
+                        handleSave();
+                    }
+                }} isGenerating={isGenerating} externalTime={isSpotifyMode ? spotifyCurrentTime : undefined} isExternalPlaying={isSpotifyMode ? spotifyState.isPlaying : undefined}
+                    onSpotifyControl={isSpotifyMode ? controlPlayback : undefined}
+                    externalDuration={isSpotifyMode && spotifyState.track ? spotifyState.track.duration_ms / 1000 : undefined}
+                    onSearchSpotify={isSpotifyMode ? searchSpotify : undefined}
+                    onPlayTrack={isSpotifyMode ? playTrack : undefined} />}
                 {activeTab === 'karaoke' && <KaraokeView hanzi={hanzi} pinyin={pinyin} english={english} />}
                 {activeTab === 'export' && (
                     <div className="p-8 h-full flex flex-col items-center justify-center overflow-hidden">

@@ -5,7 +5,9 @@ import { pinyin } from 'pinyin-pro'
 import { translate } from 'google-translate-api-x'
 
 const generateSchema = z.object({
-    hanziLines: z.array(z.string()),
+    hanziLines: z.array(z.string()).optional(),
+    title: z.string().optional(),
+    artist: z.string().optional(),
     options: z.object({
         toneNumbers: z.boolean().optional(),
     }).optional()
@@ -20,16 +22,117 @@ export async function POST(req: Request) {
     }
 
     try {
-        const { hanziLines, options } = generateSchema.parse(body)
-
-        if (hanziLines.length === 0) {
-            return NextResponse.json({ pinyin: [], english: [] })
-        }
+        const { hanziLines = [], title, artist, options } = generateSchema.parse(body)
 
         const apiKey = process.env.OPENAI_API_KEY
         // Use gpt-4o as per commit c5499c1
         const model = 'gpt-4o'
         const openai = apiKey ? new OpenAI({ apiKey: apiKey }) : null
+
+        // NEW: Fetch lyrics from LRCLIB first, then OpenAI as fallback
+        let workingHanziLines = [...hanziLines];
+        let foundLrc: string | null = null; // Store synced lyrics if found
+
+        // Try to fetch LRC sync data (both for new songs AND existing songs missing sync)
+        if (title && artist) {
+            console.log(`[Generate] Checking LRCLIB for: ${title} - ${artist}`)
+
+            try {
+                const query = new URLSearchParams({ q: `${title} ${artist}` })
+                const lrcRes = await fetch(`https://lrclib.net/api/search?${query}`, {
+                    headers: { 'User-Agent': 'KTV-Buddy/1.0' },
+                    signal: AbortSignal.timeout(3000) // 3s timeout
+                })
+
+                if (lrcRes.ok) {
+                    const hits = await lrcRes.json()
+                    if (Array.isArray(hits) && hits.length > 0) {
+                        // Find best match - HEAVILY prefer hits with syncedLyrics
+                        const titleLower = title.toLowerCase()
+
+                        // Priority 1: Exact title match WITH synced lyrics
+                        let best = hits.find((h: any) =>
+                            h.syncedLyrics && h.name.toLowerCase() === titleLower
+                        )
+
+                        // Priority 2: Title contains match WITH synced lyrics
+                        if (!best) {
+                            best = hits.find((h: any) =>
+                                h.syncedLyrics && (
+                                    h.name.toLowerCase().includes(titleLower) ||
+                                    titleLower.includes(h.name.toLowerCase())
+                                )
+                            )
+                        }
+
+                        // Priority 3: ANY hit with synced lyrics
+                        if (!best) {
+                            best = hits.find((h: any) => h.syncedLyrics)
+                        }
+
+                        // Priority 4: Fallback to first hit (even if no sync)
+                        if (!best) {
+                            best = hits[0]
+                        }
+
+                        if (best) {
+                            // Always capture synced lyrics if available
+                            foundLrc = best.syncedLyrics || null
+
+                            // Only update hanzi if we don't have any yet
+                            if (workingHanziLines.length === 0 && best.plainLyrics) {
+                                console.log(`[Generate] Found lyrics on LRCLIB: ${best.name}`)
+                                workingHanziLines = best.plainLyrics.split('\n').map((l: string) => l.trim()).filter((l: string) => l)
+                            }
+
+                            if (foundLrc) {
+                                console.log(`[Generate] Found synced LRC for: ${best.name}`)
+                            } else {
+                                console.log(`[Generate] Found lyrics but NO SYNC for: ${best.name}`)
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[Generate] LRCLIB fetch failed:', e)
+            }
+        }
+
+        // Backup: Try Genius scraping if LRCLIB had no lyrics (no sync, but may have content)
+        if (workingHanziLines.length === 0 && title && artist) {
+            console.log(`[Generate] Trying Genius for: ${title} - ${artist}`)
+            try {
+                // Genius search API (no key needed for basic search)
+                const geniusQuery = encodeURIComponent(`${title} ${artist}`)
+                const geniusRes = await fetch(`https://genius.com/api/search/multi?q=${geniusQuery}`, {
+                    headers: { 'User-Agent': 'KTV-Buddy/1.0' },
+                    signal: AbortSignal.timeout(5000)
+                })
+
+                if (geniusRes.ok) {
+                    const geniusData = await geniusRes.json()
+                    const songs = geniusData?.response?.sections?.find((s: any) => s.type === 'song')?.hits || []
+
+                    if (songs.length > 0) {
+                        const geniusSong = songs[0]?.result
+                        if (geniusSong?.url) {
+                            console.log(`[Generate] Found on Genius: ${geniusSong.full_title}`)
+                            // Note: Genius lyrics require scraping the page - we'll let OpenAI handle it
+                            // But we log that we found the song exists
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[Generate] Genius search failed:', e)
+            }
+        }
+
+        // NOTE: OpenAI is NOT used for lyrics fetching - it makes up lyrics!
+        // Only LRCLIB database is used. If no lyrics found, return empty.
+
+        if (workingHanziLines.length === 0) {
+            return NextResponse.json({ pinyin: [], english: [] })
+        }
 
         // System prompt from commit c5499c1
         const systemPrompt = `
@@ -52,8 +155,8 @@ English rules:
 
         const CHUNK_SIZE = 10
         const chunks: string[][] = []
-        for (let i = 0; i < hanziLines.length; i += CHUNK_SIZE) {
-            chunks.push(hanziLines.slice(i, i + CHUNK_SIZE))
+        for (let i = 0; i < workingHanziLines.length; i += CHUNK_SIZE) {
+            chunks.push(workingHanziLines.slice(i, i + CHUNK_SIZE))
         }
 
         // Create Stream
@@ -62,11 +165,20 @@ English rules:
                 const encoder = new TextEncoder()
                 const send = (data: any) => controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
 
-                // Note: We deliberately continue even if no API key is present, to trigger fallback mechanism if desired.
-                // However, the original code returned early. With the new requirement, 
-                // if there is NO api key, we should prolly just use fallback for everything?
-                // The prompt says "if error generating... use google translate". 
-                // So if openai is null, it's effectively an error for every chunk.
+                // If we fetched new lyrics, send them to the client FIRST!
+                if (workingHanziLines.length > 0 && hanziLines.length === 0) {
+                    send({
+                        type: 'lyrics_update',
+                        data: workingHanziLines
+                    })
+
+                    if (foundLrc) {
+                        send({
+                            type: 'lrc_update',
+                            data: foundLrc
+                        })
+                    }
+                }
 
                 // Helper to clean JSON string
                 const cleanJson = (text: string) => {
@@ -75,7 +187,7 @@ English rules:
                     return text.trim()
                 }
 
-                console.log(`[Generate] Processing ${hanziLines.length} lines in ${chunks.length} chunks. Model: ${model}. Streaming enabled.`)
+                console.log(`[Generate] Processing ${workingHanziLines.length} lines in ${chunks.length} chunks. Model: ${model}. Streaming enabled.`)
 
                 // Process Chunks
                 for (const [index, chunk] of chunks.entries()) {

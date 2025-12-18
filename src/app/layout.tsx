@@ -11,6 +11,7 @@ export const metadata: Metadata = {
 }
 
 import { LanguageProvider } from '@/lib/i18n'
+import { SpotifyProvider } from '@/hooks/useSpotify'
 
 // ...
 
@@ -23,7 +24,9 @@ export default function RootLayout({
     <html lang="en" className="h-full bg-zinc-950" suppressHydrationWarning>
       <body className={`${inter.className} antialiased h-full text-zinc-100`} suppressHydrationWarning>
         <LanguageProvider>
-          {children}
+          <SpotifyProvider>
+            {children}
+          </SpotifyProvider>
         </LanguageProvider>
       </body>
     </html>
