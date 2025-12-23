@@ -50,19 +50,3 @@ body {
 .animate-shimmer {
   animation: shimmer 2s ease-in-out infinite;
 }
-/* Ko-fi Widget Customization */
-@media (max-width: 768px) {
-  /* Move widget up to avoid mobile bottom nav overlap */
-  [id^="kofi-widget-overlay"] {
-    bottom: 80px !important;
-    left: 10px !important;
-    /* Make it slightly smaller/subtle on mobile */
-    transform: scale(0.85) !important;
-    transform-origin: bottom left !important;
-  }
-}
-
-/* Ensure it doesn't block interactions */
-[id^="kofi-widget-overlay"] {
-  z-index: 40 !important; /* Below mobile nav (z-50) if it overlaps, but we moved it up */
-}

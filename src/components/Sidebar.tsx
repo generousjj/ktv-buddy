@@ -10,6 +10,7 @@ import { useSpotify } from '@/hooks/useSpotify'
 import { SpotifyControl } from './SpotifyControl'
 import { SongStore } from '@/lib/store'
 import { findBestMatch } from '@/lib/matching'
+import { KofiWidget } from '@/components/KofiWidget'
 
 export function Sidebar() {
     const pathname = usePathname()
@@ -273,8 +274,9 @@ export function Sidebar() {
                         onToggleMode={setSpotifyMode}
                     />
                 </div>
-                <div className="p-4 border-t border-zinc-800 text-xs text-zinc-500">
-                    {t('app.title')} v0.1
+                <div className="p-4 border-t border-zinc-800 text-xs text-zinc-500 flex items-center justify-between">
+                    <span>{t('app.title')} v0.1</span>
+                    <KofiWidget inline label={false} />
                 </div>
             </aside>
 

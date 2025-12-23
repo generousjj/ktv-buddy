@@ -81,7 +81,6 @@ export default function RootLayout({
         <LanguageProvider>
           <SpotifyProvider>
             {children}
-            <KofiWidget />
           </SpotifyProvider>
         </LanguageProvider>
       </body>
