@@ -66,6 +66,7 @@ export const metadata: Metadata = {
 
 import { LanguageProvider } from '@/lib/i18n'
 import { SpotifyProvider } from '@/hooks/useSpotify'
+import { KofiWidget } from '@/components/KofiWidget'
 
 // ...
 
@@ -80,6 +81,7 @@ export default function RootLayout({
         <LanguageProvider>
           <SpotifyProvider>
             {children}
+            <KofiWidget />
           </SpotifyProvider>
         </LanguageProvider>
       </body>
