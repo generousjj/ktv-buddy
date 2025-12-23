@@ -3,14 +3,13 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
-import { Library, PlusCircle, Settings, Music, Search, Loader2, AlertCircle } from 'lucide-react'
+import { Library, PlusCircle, Settings, Music, Search, Loader2, AlertCircle, Coffee } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useLanguage } from '@/lib/i18n'
 import { useSpotify } from '@/hooks/useSpotify'
 import { SpotifyControl } from './SpotifyControl'
 import { SongStore } from '@/lib/store'
 import { findBestMatch } from '@/lib/matching'
-import { KofiWidget } from '@/components/KofiWidget'
 
 export function Sidebar() {
     const pathname = usePathname()
@@ -197,6 +196,25 @@ export function Sidebar() {
                     })}
                 </nav>
 
+                {/* Ko-fi Support (Desktop) */}
+                <div className="px-4 py-3 pb-0">
+                    <a
+                        href="https://ko-fi.com/R5R04Z45J"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800/50 rounded-md transition-all group"
+                    >
+                        <div className="relative">
+                            <Coffee className="w-5 h-5" />
+                            <span className="absolute -top-1 -right-1 flex h-1.5 w-1.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                            </span>
+                        </div>
+                        <span className="text-sm font-medium group-hover:text-emerald-400">Buy me a coffee</span>
+                    </a>
+                </div>
+
                 {/* Spotify Search Section */}
                 {spotifyState.isConnected ? (
                     <div className="px-4 py-3 border-t border-zinc-800">
@@ -274,9 +292,8 @@ export function Sidebar() {
                         onToggleMode={setSpotifyMode}
                     />
                 </div>
-                <div className="p-4 border-t border-zinc-800 text-xs text-zinc-500 flex items-center justify-between">
-                    <span>{t('app.title')} v0.1</span>
-                    <KofiWidget inline label={false} />
+                <div className="p-4 border-t border-zinc-800 text-xs text-zinc-500">
+                    {t('app.title')} v0.1
                 </div>
             </aside>
 
