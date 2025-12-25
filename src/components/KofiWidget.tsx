@@ -3,6 +3,7 @@
 import { Coffee } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 
 interface KofiWidgetProps {
     variant?: 'floating' | 'sidebar'
@@ -12,6 +13,7 @@ interface KofiWidgetProps {
 export function KofiWidget({ variant = 'floating', className }: KofiWidgetProps) {
     const [isHovered, setIsHovered] = useState(false)
     const [isVisible, setIsVisible] = useState(false)
+    const pathname = usePathname()
 
     // Delay appearance slightly for floating widget
     useEffect(() => {
@@ -49,7 +51,8 @@ export function KofiWidget({ variant = 'floating', className }: KofiWidgetProps)
             target="_blank"
             rel="noopener noreferrer"
             className={clsx(
-                "fixed z-50 transition-all duration-300 ease-in-out flex items-center gap-2 shadow-lg hover:shadow-xl",
+                "fixed z-50 transition-all duration-300 ease-in-out items-center gap-2 shadow-lg hover:shadow-xl",
+                pathname?.startsWith('/song') ? "hidden md:flex" : "flex",
                 // Mobile positioning (higher to avoid bottom nav)
                 "bottom-20 left-4",
                 // Appearance
