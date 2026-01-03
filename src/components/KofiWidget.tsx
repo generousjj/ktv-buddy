@@ -13,7 +13,18 @@ interface KofiWidgetProps {
 export function KofiWidget({ variant = 'floating', className }: KofiWidgetProps) {
     const [isHovered, setIsHovered] = useState(false)
     const [isVisible, setIsVisible] = useState(false)
+    const [isMobile, setIsMobile] = useState(false)
     const pathname = usePathname()
+
+    // Detect mobile on mount and resize
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768)
+        }
+        checkMobile()
+        window.addEventListener('resize', checkMobile)
+        return () => window.removeEventListener('resize', checkMobile)
+    }, [])
 
     // Delay appearance slightly for floating widget
     useEffect(() => {
@@ -44,15 +55,20 @@ export function KofiWidget({ variant = 'floating', className }: KofiWidgetProps)
         )
     }
 
-    // Floating variant (Mobile only usually, controlled by parent)
+    // Hide floating widget on mobile /song pages entirely (not just CSS)
+    // Route is /app/song/[id] so check for /app/song
+    if (isMobile && pathname?.startsWith('/app/song')) {
+        return null
+    }
+
+    // Floating variant
     return (
         <a
             href={href}
             target="_blank"
             rel="noopener noreferrer"
             className={clsx(
-                "fixed z-50 transition-all duration-300 ease-in-out items-center gap-2 shadow-lg hover:shadow-xl",
-                pathname?.startsWith('/song') ? "hidden md:flex" : "flex",
+                "fixed z-50 transition-all duration-300 ease-in-out flex items-center gap-2 shadow-lg hover:shadow-xl",
                 // Mobile positioning (higher to avoid bottom nav)
                 "bottom-20 left-4",
                 // Appearance
