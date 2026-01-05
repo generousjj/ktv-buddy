@@ -112,13 +112,14 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
     // Track if we've already attempted auto-generation for this session/song
     const autoGenRef = useRef(false)
+    const explicitTriggerRef = useRef(false)
 
     useEffect(() => {
         // Condition 1: Hanzi exists but Pinyin/English doesn't (Partial data)
         const partialData = hanzi.length > 0 && (pinyin.length === 0 || pinyin.length !== hanzi.length)
 
-        // Condition 2: Explicit auto-generate flag
-        const explicitTrigger = shouldAutoGenerate && !isGenerating
+        // Condition 2: Explicit auto-generate flag (only once per session)
+        const explicitTrigger = shouldAutoGenerate && !explicitTriggerRef.current && !isGenerating
 
         // Condition 3: Empty song but valid metadata (Auto-created "zombie" song)
         // We only trigger this ONCE per session to prevent infinite loop if generation fails/returns empty.
@@ -128,8 +129,16 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
             console.log('[SongWorkspace] Auto-triggering generation.', { partialData, explicitTrigger, zombieTrigger })
 
             if (zombieTrigger) autoGenRef.current = true // Set generated flag
+            if (explicitTrigger) {
+                explicitTriggerRef.current = true // Set explicit trigger flag
+                // Remove the param from URL to avoid re-triggering
+                if (typeof window !== 'undefined') {
+                    const url = new URL(window.location.href)
+                    url.searchParams.delete('autoGenerate')
+                    window.history.replaceState({}, '', url.toString())
+                }
+            }
 
-            // Remove the param to avoid re-triggering on refresh? Maybe not needed for now.
             handleGenerate()
         }
     }, [shouldAutoGenerate, hanzi.length, pinyin.length, isGenerating, initialData.title, initialData.artist])
