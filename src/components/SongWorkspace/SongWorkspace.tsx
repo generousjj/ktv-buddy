@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Save, Copy, Check } from 'lucide-react'
 import Link from 'next/link'
 import { pinyin as pinyinPro } from 'pinyin-pro'
@@ -111,7 +111,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
     const shouldAutoGenerate = searchParams?.get('autoGenerate') === 'true'
 
     // Track if we've already attempted auto-generation for this session/song
-    const autoGenRef = useState(false)
+    const autoGenRef = useRef(false)
 
     useEffect(() => {
         // Condition 1: Hanzi exists but Pinyin/English doesn't (Partial data)
@@ -122,17 +122,17 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
         // Condition 3: Empty song but valid metadata (Auto-created "zombie" song)
         // We only trigger this ONCE per session to prevent infinite loop if generation fails/returns empty.
-        const zombieTrigger = hanzi.length === 0 && initialData.title && initialData.artist && !autoGenRef[0] && !isGenerating
+        const zombieTrigger = hanzi.length === 0 && initialData.title && initialData.artist && !autoGenRef.current && !isGenerating
 
         if (partialData || explicitTrigger || zombieTrigger) {
             console.log('[SongWorkspace] Auto-triggering generation.', { partialData, explicitTrigger, zombieTrigger })
 
-            if (zombieTrigger) autoGenRef[1](true) // Set generated flag
+            if (zombieTrigger) autoGenRef.current = true // Set generated flag
 
             // Remove the param to avoid re-triggering on refresh? Maybe not needed for now.
             handleGenerate()
         }
-    }, [shouldAutoGenerate, hanzi.length, pinyin.length])
+    }, [shouldAutoGenerate, hanzi.length, pinyin.length, isGenerating, initialData.title, initialData.artist])
 
     const handleGenerate = async () => {
         if (isGenerating) return
@@ -286,6 +286,8 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                                 spotifyTrackId: initialData.spotifyTrackId
                             })
                             console.log('[Generate] Saved LRC sync data')
+                        } else if (msg.type === 'info') {
+                            console.log('[Generate] Info:', msg.message)
                         } else if (msg.type === 'error') {
                             console.error('Stream error:', msg.message)
                         }

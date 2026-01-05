@@ -131,7 +131,29 @@ export async function POST(req: Request) {
         // Only LRCLIB database is used. If no lyrics found, return empty.
 
         if (workingHanziLines.length === 0) {
-            return NextResponse.json({ pinyin: [], english: [] })
+            console.log('[Generate] No lyrics found from any source.')
+            // Still return a stream for consistency with client expectations
+            const stream = new ReadableStream({
+                start(controller) {
+                    const encoder = new TextEncoder()
+                    const send = (data: any) => controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
+
+                    send({
+                        type: 'info',
+                        message: 'No lyrics found. Please add lyrics manually or try a different song.'
+                    })
+
+                    controller.close()
+                }
+            })
+
+            return new Response(stream, {
+                headers: {
+                    'Content-Type': 'application/x-ndjson',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive'
+                }
+            })
         }
 
         // System prompt from commit c5499c1
