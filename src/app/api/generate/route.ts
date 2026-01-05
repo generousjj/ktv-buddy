@@ -33,20 +33,23 @@ export async function POST(req: Request) {
         let workingHanziLines = [...hanziLines];
         let foundLrc: string | null = null; // Store synced lyrics if found
 
-        // Helper to fetch with retry
-        const fetchWithRetry = async (url: string, retries = 2): Promise<any[] | null> => {
+        // Helper to fetch with retry using allOrigins proxy to work around Vercel networking issues
+        const fetchWithRetry = async (query: string, retries = 2): Promise<any[] | null> => {
+            const searchUrl = `https://lrclib.net/api/search?${query}`
+            // Use allOrigins proxy to bypass Vercel's networking issues with lrclib.net
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`
+
             for (let i = 0; i <= retries; i++) {
                 try {
-                    console.log(`[Generate] Attempt ${i + 1}/${retries + 1}: ${url}`)
-                    const res = await fetch(url, {
-                        headers: { 'User-Agent': 'KTV-Buddy/1.0' },
-                        signal: AbortSignal.timeout(5000) // 5s per attempt
+                    console.log(`[Generate] Attempt ${i + 1}/${retries + 1}: ${searchUrl} (via proxy)`)
+                    const res = await fetch(proxyUrl, {
+                        signal: AbortSignal.timeout(8000) // 8s per attempt
                     })
 
                     if (res.ok) {
                         const data = await res.json()
-                        console.log(`[Generate] Success! Got ${data.length} results`)
-                        return data
+                        console.log(`[Generate] Success! Got ${Array.isArray(data) ? data.length : 0} results`)
+                        return Array.isArray(data) ? data : null
                     }
                     console.warn(`[Generate] HTTP ${res.status}`)
                 } catch (e: any) {
@@ -67,7 +70,7 @@ export async function POST(req: Request) {
 
             // Try search with title + artist first
             const query1 = new URLSearchParams({ q: `${title} ${artist}` })
-            const results1 = await fetchWithRetry(`https://lrclib.net/api/search?${query1}`)
+            const results1 = await fetchWithRetry(query1.toString())
             if (results1 && results1.length > 0) {
                 hits = results1
             }
@@ -76,7 +79,7 @@ export async function POST(req: Request) {
             if (hits.length === 0) {
                 console.log(`[Generate] Trying title-only search: ${title}`)
                 const query2 = new URLSearchParams({ q: title })
-                const results2 = await fetchWithRetry(`https://lrclib.net/api/search?${query2}`)
+                const results2 = await fetchWithRetry(query2.toString())
                 if (results2 && results2.length > 0) {
                     hits = results2
                 }
