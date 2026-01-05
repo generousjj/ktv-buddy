@@ -37,25 +37,30 @@ export async function POST(req: Request) {
         if (title && artist) {
             console.log(`[Generate] Checking LRCLIB for: ${title} - ${artist}`)
 
+            let hits: any[] = []
+
+            // Try search with title + artist first
             try {
-                // Try search with title + artist first
-                let query = new URLSearchParams({ q: `${title} ${artist}` })
-                let lrcRes = await fetch(`https://lrclib.net/api/search?${query}`, {
+                const query = new URLSearchParams({ q: `${title} ${artist}` })
+                const lrcRes = await fetch(`https://lrclib.net/api/search?${query}`, {
                     headers: { 'User-Agent': 'KTV-Buddy/1.0' },
-                    signal: AbortSignal.timeout(10000) // 10s timeout (up from 3s)
+                    signal: AbortSignal.timeout(10000) // 10s timeout
                 })
 
-                let hits: any[] = []
                 if (lrcRes.ok) {
                     hits = await lrcRes.json()
                     console.log(`[Generate] LRCLIB search (title+artist) returned ${hits.length} results`)
                 }
+            } catch (e: any) {
+                console.warn(`[Generate] Title+artist search failed: ${e.message}`)
+            }
 
-                // If no results with title+artist, try title-only as fallback
-                if (!Array.isArray(hits) || hits.length === 0) {
-                    console.log(`[Generate] Trying title-only search: ${title}`)
-                    query = new URLSearchParams({ q: title })
-                    lrcRes = await fetch(`https://lrclib.net/api/search?${query}`, {
+            // If no results with title+artist, try title-only as fallback
+            if (!Array.isArray(hits) || hits.length === 0) {
+                console.log(`[Generate] Trying title-only search: ${title}`)
+                try {
+                    const query = new URLSearchParams({ q: title })
+                    const lrcRes = await fetch(`https://lrclib.net/api/search?${query}`, {
                         headers: { 'User-Agent': 'KTV-Buddy/1.0' },
                         signal: AbortSignal.timeout(10000) // 10s timeout
                     })
@@ -64,60 +69,60 @@ export async function POST(req: Request) {
                         hits = await lrcRes.json()
                         console.log(`[Generate] LRCLIB search (title-only) returned ${hits.length} results`)
                     }
+                } catch (e: any) {
+                    console.warn(`[Generate] Title-only search failed: ${e.message}`)
                 }
+            }
 
-                if (Array.isArray(hits) && hits.length > 0) {
-                    // Find best match - HEAVILY prefer hits with syncedLyrics
-                    const titleLower = title.toLowerCase()
+            if (Array.isArray(hits) && hits.length > 0) {
+                // Find best match - HEAVILY prefer hits with syncedLyrics
+                const titleLower = title.toLowerCase()
 
-                    // Priority 1: Exact title match WITH synced lyrics
-                    let best = hits.find((h: any) =>
-                        h.syncedLyrics && h.name.toLowerCase() === titleLower
-                    )
+                // Priority 1: Exact title match WITH synced lyrics
+                let best = hits.find((h: any) =>
+                    h.syncedLyrics && h.name.toLowerCase() === titleLower
+                )
 
-                    // Priority 2: Title contains match WITH synced lyrics
-                    if (!best) {
-                        best = hits.find((h: any) =>
-                            h.syncedLyrics && (
-                                h.name.toLowerCase().includes(titleLower) ||
-                                titleLower.includes(h.name.toLowerCase())
-                            )
+                // Priority 2: Title contains match WITH synced lyrics
+                if (!best) {
+                    best = hits.find((h: any) =>
+                        h.syncedLyrics && (
+                            h.name.toLowerCase().includes(titleLower) ||
+                            titleLower.includes(h.name.toLowerCase())
                         )
-                    }
-
-                    // Priority 3: ANY hit with synced lyrics
-                    if (!best) {
-                        best = hits.find((h: any) => h.syncedLyrics)
-                    }
-
-                    // Priority 4: Fallback to first hit (even if no sync)
-                    if (!best) {
-                        best = hits[0]
-                    }
-
-                    if (best) {
-                        console.log(`[Generate] Selected match: "${best.name}" by "${best.artistName}" (ID: ${best.id})`)
-
-                        // Always capture synced lyrics if available
-                        foundLrc = best.syncedLyrics || null
-
-                        // Only update hanzi if we don't have any yet
-                        if (workingHanziLines.length === 0 && best.plainLyrics) {
-                            console.log(`[Generate] Found lyrics on LRCLIB: ${best.name}`)
-                            workingHanziLines = best.plainLyrics.split('\n').map((l: string) => l.trim()).filter((l: string) => l)
-                        }
-
-                        if (foundLrc) {
-                            console.log(`[Generate] Found synced LRC for: ${best.name}`)
-                        } else {
-                            console.log(`[Generate] Found lyrics but NO SYNC for: ${best.name}`)
-                        }
-                    }
-                } else {
-                    console.log('[Generate] No results from LRCLIB')
+                    )
                 }
-            } catch (e) {
-                console.warn('[Generate] LRCLIB fetch failed:', e)
+
+                // Priority 3: ANY hit with synced lyrics
+                if (!best) {
+                    best = hits.find((h: any) => h.syncedLyrics)
+                }
+
+                // Priority 4: Fallback to first hit (even if no sync)
+                if (!best) {
+                    best = hits[0]
+                }
+
+                if (best) {
+                    console.log(`[Generate] Selected match: "${best.name}" by "${best.artistName}" (ID: ${best.id})`)
+
+                    // Always capture synced lyrics if available
+                    foundLrc = best.syncedLyrics || null
+
+                    // Only update hanzi if we don't have any yet
+                    if (workingHanziLines.length === 0 && best.plainLyrics) {
+                        console.log(`[Generate] Found lyrics on LRCLIB: ${best.name}`)
+                        workingHanziLines = best.plainLyrics.split('\n').map((l: string) => l.trim()).filter((l: string) => l)
+                    }
+
+                    if (foundLrc) {
+                        console.log(`[Generate] Found synced LRC for: ${best.name}`)
+                    } else {
+                        console.log(`[Generate] Found lyrics but NO SYNC for: ${best.name}`)
+                    }
+                }
+            } else {
+                console.log('[Generate] No results from LRCLIB')
             }
         }
 
