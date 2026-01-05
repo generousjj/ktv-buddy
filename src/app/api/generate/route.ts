@@ -33,6 +33,32 @@ export async function POST(req: Request) {
         let workingHanziLines = [...hanziLines];
         let foundLrc: string | null = null; // Store synced lyrics if found
 
+        // Helper to fetch with retry
+        const fetchWithRetry = async (url: string, retries = 2): Promise<any[] | null> => {
+            for (let i = 0; i <= retries; i++) {
+                try {
+                    console.log(`[Generate] Attempt ${i + 1}/${retries + 1}: ${url}`)
+                    const res = await fetch(url, {
+                        headers: { 'User-Agent': 'KTV-Buddy/1.0' },
+                        signal: AbortSignal.timeout(5000) // 5s per attempt
+                    })
+
+                    if (res.ok) {
+                        const data = await res.json()
+                        console.log(`[Generate] Success! Got ${data.length} results`)
+                        return data
+                    }
+                    console.warn(`[Generate] HTTP ${res.status}`)
+                } catch (e: any) {
+                    console.warn(`[Generate] Attempt ${i + 1} failed: ${e.message}`)
+                    if (i < retries) {
+                        await new Promise(r => setTimeout(r, 500 * (i + 1))) // 500ms, 1s backoff
+                    }
+                }
+            }
+            return null
+        }
+
         // Try to fetch LRC sync data (both for new songs AND existing songs missing sync)
         if (title && artist) {
             console.log(`[Generate] Checking LRCLIB for: ${title} - ${artist}`)
@@ -40,37 +66,19 @@ export async function POST(req: Request) {
             let hits: any[] = []
 
             // Try search with title + artist first
-            try {
-                const query = new URLSearchParams({ q: `${title} ${artist}` })
-                const lrcRes = await fetch(`https://lrclib.net/api/search?${query}`, {
-                    headers: { 'User-Agent': 'KTV-Buddy/1.0' },
-                    signal: AbortSignal.timeout(10000) // 10s timeout
-                })
-
-                if (lrcRes.ok) {
-                    hits = await lrcRes.json()
-                    console.log(`[Generate] LRCLIB search (title+artist) returned ${hits.length} results`)
-                }
-            } catch (e: any) {
-                console.warn(`[Generate] Title+artist search failed: ${e.message}`)
+            const query1 = new URLSearchParams({ q: `${title} ${artist}` })
+            const results1 = await fetchWithRetry(`https://lrclib.net/api/search?${query1}`)
+            if (results1 && results1.length > 0) {
+                hits = results1
             }
 
             // If no results with title+artist, try title-only as fallback
-            if (!Array.isArray(hits) || hits.length === 0) {
+            if (hits.length === 0) {
                 console.log(`[Generate] Trying title-only search: ${title}`)
-                try {
-                    const query = new URLSearchParams({ q: title })
-                    const lrcRes = await fetch(`https://lrclib.net/api/search?${query}`, {
-                        headers: { 'User-Agent': 'KTV-Buddy/1.0' },
-                        signal: AbortSignal.timeout(10000) // 10s timeout
-                    })
-
-                    if (lrcRes.ok) {
-                        hits = await lrcRes.json()
-                        console.log(`[Generate] LRCLIB search (title-only) returned ${hits.length} results`)
-                    }
-                } catch (e: any) {
-                    console.warn(`[Generate] Title-only search failed: ${e.message}`)
+                const query2 = new URLSearchParams({ q: title })
+                const results2 = await fetchWithRetry(`https://lrclib.net/api/search?${query2}`)
+                if (results2 && results2.length > 0) {
+                    hits = results2
                 }
             }
 
