@@ -122,13 +122,21 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
         const explicitTrigger = shouldAutoGenerate && !explicitTriggerRef.current && !isGenerating
 
         // Condition 3: Empty song but valid metadata (Auto-created "zombie" song)
-        // We only trigger this ONCE per session to prevent infinite loop if generation fails/returns empty.
-        const zombieTrigger = hanzi.length === 0 && initialData.title && initialData.artist && !autoGenRef.current && !isGenerating
+        // We only trigger this ONCE per song ID to prevent infinite loop if generation fails/returns empty.
+        // Use localStorage to persist across navigations
+        const zombieAttemptKey = `zombie-attempt-${initialData.id}`
+        const hasAttemptedZombie = typeof window !== 'undefined' ? localStorage.getItem(zombieAttemptKey) === 'true' : false
+        const zombieTrigger = hanzi.length === 0 && initialData.title && initialData.artist && !hasAttemptedZombie && !autoGenRef.current && !isGenerating
 
         if (partialData || explicitTrigger || zombieTrigger) {
             console.log('[SongWorkspace] Auto-triggering generation.', { partialData, explicitTrigger, zombieTrigger })
 
-            if (zombieTrigger) autoGenRef.current = true // Set generated flag
+            if (zombieTrigger) {
+                autoGenRef.current = true // Set generated flag for this session
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem(zombieAttemptKey, 'true')
+                }
+            }
             if (explicitTrigger) {
                 explicitTriggerRef.current = true // Set explicit trigger flag
                 // Remove the param from URL to avoid re-triggering
@@ -141,7 +149,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
 
             handleGenerate()
         }
-    }, [shouldAutoGenerate, hanzi.length, pinyin.length, isGenerating, initialData.title, initialData.artist])
+    }, [shouldAutoGenerate, hanzi.length, pinyin.length, isGenerating, initialData.title, initialData.artist, initialData.id])
 
     const handleGenerate = async () => {
         if (isGenerating) return
