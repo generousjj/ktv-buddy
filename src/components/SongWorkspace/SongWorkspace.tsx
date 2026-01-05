@@ -166,9 +166,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 try {
                     // Try title + artist first
                     let query = new URLSearchParams({ q: `${initialData.title} ${initialData.artist}` })
-                    let res = await fetch(`https://lrclib.net/api/search?${query}`, {
-                        signal: AbortSignal.timeout(5000)
-                    })
+                    let res = await fetch(`https://lrclib.net/api/search?${query}`)
 
                     let hits: any[] = []
                     if (res.ok) {
@@ -180,9 +178,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                     if (hits.length === 0) {
                         console.log(`[Generate Client] Trying title-only search`)
                         query = new URLSearchParams({ q: initialData.title })
-                        res = await fetch(`https://lrclib.net/api/search?${query}`, {
-                            signal: AbortSignal.timeout(5000)
-                        })
+                        res = await fetch(`https://lrclib.net/api/search?${query}`)
                         if (res.ok) {
                             hits = await res.json()
                             console.log(`[Generate Client] Found ${hits.length} results (title-only)`)
