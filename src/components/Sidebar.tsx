@@ -165,7 +165,7 @@ export function Sidebar() {
         }
         SongStore.save(newSong)
         router.push(`/app/song/${newSongId}?autoGenerate=true`)
-    }, [spotifyState, isSpotifyMode, pathname, router])
+    }, [spotifyState.track?.id, isSpotifyMode, pathname, router])
 
     return (
         <>
