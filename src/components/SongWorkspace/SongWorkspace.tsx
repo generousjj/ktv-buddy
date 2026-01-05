@@ -156,16 +156,74 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
         setIsGenerating(true)
 
         try {
-            // fast-lib generation for immediate feedback
+            // NEW: Try to fetch lyrics from LRCLIB client-side first (Vercel can't reach it)
+            let initialHanzi = [...hanzi]
+            let initialLrcJson = lrcJson
+
+            if (initialHanzi.length === 0 && initialData.title && initialData.artist) {
+                console.log(`[Generate Client] Trying LRCLIB for: ${initialData.title} - ${initialData.artist}`)
+
+                try {
+                    // Try title + artist first
+                    let query = new URLSearchParams({ q: `${initialData.title} ${initialData.artist}` })
+                    let res = await fetch(`https://lrclib.net/api/search?${query}`, {
+                        signal: AbortSignal.timeout(5000)
+                    })
+
+                    let hits: any[] = []
+                    if (res.ok) {
+                        hits = await res.json()
+                        console.log(`[Generate Client] Found ${hits.length} results (title+artist)`)
+                    }
+
+                    // Fallback to title-only if no results
+                    if (hits.length === 0) {
+                        console.log(`[Generate Client] Trying title-only search`)
+                        query = new URLSearchParams({ q: initialData.title })
+                        res = await fetch(`https://lrclib.net/api/search?${query}`, {
+                            signal: AbortSignal.timeout(5000)
+                        })
+                        if (res.ok) {
+                            hits = await res.json()
+                            console.log(`[Generate Client] Found ${hits.length} results (title-only)`)
+                        }
+                    }
+
+                    if (hits.length > 0) {
+                        // Find best match with synced lyrics
+                        const titleLower = initialData.title.toLowerCase()
+                        let best = hits.find((h: any) => h.syncedLyrics && h.name.toLowerCase() === titleLower)
+                        if (!best) best = hits.find((h: any) => h.syncedLyrics)
+                        if (!best) best = hits[0]
+
+                        if (best) {
+                            console.log(`[Generate Client] Using: "${best.name}" by "${best.artistName}"`)
+
+                            if (best.plainLyrics) {
+                                initialHanzi = best.plainLyrics.split('\n').map((l: string) => l.trim()).filter((l: string) => l)
+                                setHanzi([...initialHanzi])
+                            }
+
+                            if (best.syncedLyrics) {
+                                initialLrcJson = best.syncedLyrics
+                                setLrcJson(initialLrcJson)
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`[Generate Client] LRCLIB fetch failed:`, e)
+                }
+            }
+
             // fast-lib generation for immediate feedback
             // Ensure we have a working copy aligned with Hanzi
             let currentPinyin = [...pinyin]
             let currentEnglish = [...english]
 
             // If mismatch or empty, generate client-side immediately
-            if (currentPinyin.length !== hanzi.length || currentPinyin.some(p => !p)) {
+            if (currentPinyin.length !== initialHanzi.length || currentPinyin.some(p => !p)) {
                 console.log('[Generate] Filling missing pinyin client-side...')
-                const fastPinyin = hanzi.map((line, i) => {
+                const fastPinyin = initialHanzi.map((line, i) => {
                     // Use existing if valid, otherwise generate
                     if (currentPinyin[i] && currentPinyin[i] !== '') return currentPinyin[i]
                     return pinyinPro(line, {
@@ -179,8 +237,8 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
             }
 
             // Initialize English with placeholders if empty to align arrays
-            if (currentEnglish.length !== hanzi.length) {
-                const newEnglish = hanzi.map((_, i) => currentEnglish[i] || '')
+            if (currentEnglish.length !== initialHanzi.length) {
+                const newEnglish = initialHanzi.map((_, i) => currentEnglish[i] || '')
                 currentEnglish = newEnglish
                 setEnglish([...currentEnglish])
             }
@@ -192,7 +250,7 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 method: 'POST',
                 // ...
                 body: JSON.stringify({
-                    hanziLines: hanzi,
+                    hanziLines: initialHanzi,
                     title: initialData.title,
                     artist: initialData.artist,
                     options: { toneNumbers: false }
