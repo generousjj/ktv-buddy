@@ -164,24 +164,41 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
                 console.log(`[Generate Client] Trying LRCLIB for: ${initialData.title} - ${initialData.artist}`)
 
                 try {
+                    // Clean title: remove subtitle parts (after - or in parentheses/brackets)
+                    const cleanTitle = initialData.title
+                        .split(/[-–—]/)[0]  // Take first part before dash
+                        .replace(/[【《\[（(].*?[】》\]）)]/g, '')  // Remove content in brackets
+                        .trim()
+
+                    console.log(`[Generate Client] Original title: "${initialData.title}"`)
+                    console.log(`[Generate Client] Cleaned title: "${cleanTitle}"`)
+
                     // Try title + artist first
-                    let query = new URLSearchParams({ q: `${initialData.title} ${initialData.artist}` })
-                    let res = await fetch(`https://lrclib.net/api/search?${query}`)
+                    let query = new URLSearchParams({ q: `${cleanTitle} ${initialData.artist}` })
+                    let url = `https://lrclib.net/api/search?${query}`
+                    console.log(`[Generate Client] Fetching: ${url}`)
+                    let res = await fetch(url)
 
                     let hits: any[] = []
                     if (res.ok) {
                         hits = await res.json()
                         console.log(`[Generate Client] Found ${hits.length} results (title+artist)`)
+                    } else {
+                        console.warn(`[Generate Client] HTTP ${res.status}`)
                     }
 
                     // Fallback to title-only if no results
                     if (hits.length === 0) {
                         console.log(`[Generate Client] Trying title-only search`)
-                        query = new URLSearchParams({ q: initialData.title })
-                        res = await fetch(`https://lrclib.net/api/search?${query}`)
+                        query = new URLSearchParams({ q: cleanTitle })
+                        url = `https://lrclib.net/api/search?${query}`
+                        console.log(`[Generate Client] Fetching: ${url}`)
+                        res = await fetch(url)
                         if (res.ok) {
                             hits = await res.json()
                             console.log(`[Generate Client] Found ${hits.length} results (title-only)`)
+                        } else {
+                            console.warn(`[Generate Client] HTTP ${res.status}`)
                         }
                     }
 
