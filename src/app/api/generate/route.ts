@@ -42,7 +42,7 @@ export async function POST(req: Request) {
                 let query = new URLSearchParams({ q: `${title} ${artist}` })
                 let lrcRes = await fetch(`https://lrclib.net/api/search?${query}`, {
                     headers: { 'User-Agent': 'KTV-Buddy/1.0' },
-                    signal: AbortSignal.timeout(3000) // 3s timeout
+                    signal: AbortSignal.timeout(10000) // 10s timeout (up from 3s)
                 })
 
                 let hits: any[] = []
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
                     query = new URLSearchParams({ q: title })
                     lrcRes = await fetch(`https://lrclib.net/api/search?${query}`, {
                         headers: { 'User-Agent': 'KTV-Buddy/1.0' },
-                        signal: AbortSignal.timeout(3000)
+                        signal: AbortSignal.timeout(10000) // 10s timeout
                     })
 
                     if (lrcRes.ok) {
