@@ -280,9 +280,19 @@ export function SongWorkspace({ initialData }: { initialData: SongData }) {
             // Sync local reference again in case state update hasn't propagated to this closure's pinyin
             // (Actually currentPinyin is local variable so it's fine, but just to be safe)
 
-            // Use initialHanzi (fresh from client fetch), NOT stale hanzi state
+            if (currentEnglish.length !== initialHanzi.length) {
+                // Resize if needed (fill with empty strings)
+                const newArr = Array(initialHanzi.length).fill('')
+                currentEnglish.forEach((val, i) => {
+                    if (i < newArr.length) newArr[i] = val
+                })
+                currentEnglish = newArr
+                setEnglish([...currentEnglish])
+            }
+
+            // Use initialHanzi (local updated var) instead of hanzi (stale closure)
             let currentHanzi = [...initialHanzi]
-            let currentLrcJson = initialLrcJson
+            let currentLrcJson = initialLrcJson // Track lrcJson locally to prevent overwrites by closure stale state
 
             while (true) {
                 const { done, value } = await reader.read()
