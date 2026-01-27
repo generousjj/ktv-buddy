@@ -45,38 +45,78 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
 
     // Init token with expiration check
     useEffect(() => {
-        const stored = typeof window !== 'undefined' ? localStorage.getItem('spotify_access_token') : null
-        const expiration = typeof window !== 'undefined' ? localStorage.getItem('spotify_token_expiration') : null
+        const checkAndSetToken = () => {
+            const stored = typeof window !== 'undefined' ? localStorage.getItem('spotify_access_token') : null
+            const expiration = typeof window !== 'undefined' ? localStorage.getItem('spotify_token_expiration') : null
 
-        if (stored) {
-            // Check if token has expired (Spotify tokens last 1 hour = 3600000ms)
-            if (expiration) {
-                const expirationTime = parseInt(expiration, 10)
-                if (Date.now() > expirationTime) {
-                    console.log('[Spotify] Token expired, clearing...')
-                    localStorage.removeItem('spotify_access_token')
-                    localStorage.removeItem('spotify_token_expiration')
-                    return // Don't set token
+            if (stored) {
+                // Check if token has expired (Spotify tokens last 1 hour = 3600000ms)
+                if (expiration) {
+                    const expirationTime = parseInt(expiration, 10)
+                    if (Date.now() > expirationTime) {
+                        console.log('[Spotify] Token expired, clearing...')
+                        localStorage.removeItem('spotify_access_token')
+                        localStorage.removeItem('spotify_token_expiration')
+                        return false // Token expired
+                    }
+                }
+
+                setToken(stored)
+                setSpotifyState(prev => ({ ...prev, isConnected: true }))
+
+                // Validate token is actually still valid with API
+                validateToken(stored)
+                return true
+            } else {
+                // Check hash for new token from OAuth callback (legacy implicit grant)
+                const extracted = extractTokenFromUrl()
+                if (extracted) {
+                    setToken(extracted)
+                    localStorage.setItem('spotify_access_token', extracted)
+                    // Set expiration to 55 minutes from now (conservative to avoid edge cases)
+                    const expiresAt = Date.now() + (55 * 60 * 1000)
+                    localStorage.setItem('spotify_token_expiration', expiresAt.toString())
+                    window.history.replaceState(null, '', window.location.pathname) // Clean URL
+                    setSpotifyState(prev => ({ ...prev, isConnected: true }))
+                    return true
                 }
             }
+            return false
+        }
 
-            setToken(stored)
-            setSpotifyState(prev => ({ ...prev, isConnected: true }))
+        // Initial check
+        const foundToken = checkAndSetToken()
 
-            // Validate token is actually still valid with API
-            validateToken(stored)
-        } else {
-            // Check hash for new token from OAuth callback
-            const extracted = extractTokenFromUrl()
-            if (extracted) {
-                setToken(extracted)
-                localStorage.setItem('spotify_access_token', extracted)
-                // Set expiration to 55 minutes from now (conservative to avoid edge cases)
-                const expiresAt = Date.now() + (55 * 60 * 1000)
-                localStorage.setItem('spotify_token_expiration', expiresAt.toString())
-                window.history.replaceState(null, '', window.location.pathname) // Clean URL
+        // If no token found initially, set up polling to catch token after OAuth redirect.
+        // The callback page may still be exchanging the code for a token.
+        let retryInterval: NodeJS.Timeout | undefined
+        let retryCount = 0
+        const maxRetries = 20 // Poll for up to 2 seconds (20 * 100ms)
+
+        if (!foundToken) {
+            retryInterval = setInterval(() => {
+                retryCount++
+                if (checkAndSetToken() || retryCount >= maxRetries) {
+                    if (retryInterval) clearInterval(retryInterval)
+                }
+            }, 100)
+        }
+
+        // Listen for storage changes (fires when another tab updates localStorage)
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === 'spotify_access_token' && e.newValue) {
+                console.log('[Spotify] Token detected from storage event')
+                setToken(e.newValue)
                 setSpotifyState(prev => ({ ...prev, isConnected: true }))
+                validateToken(e.newValue)
             }
+        }
+
+        window.addEventListener('storage', handleStorageChange)
+
+        return () => {
+            window.removeEventListener('storage', handleStorageChange)
+            if (retryInterval) clearInterval(retryInterval)
         }
     }, [])
 
